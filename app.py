@@ -14,7 +14,6 @@ def extrair_texto_pdf(arquivo):
 
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
-    fornecedores = {}
     st.write("### Arquivos detectados:")
     
     for arquivo in arquivos:
@@ -22,18 +21,18 @@ def organizar_por_fornecedor(arquivos):
         st.write(f"🔹 {nome}")
         texto_pdf = extrair_texto_pdf(arquivo)
         
-        if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
-            chave = nome.rsplit("-", 1)[-1].strip().replace(".pdf", "")
-            fornecedores[chave.lower()] = nome
+        if nome.startswith(("(BTG)", "(INTER)", "(BV)")):
+            chave = nome.split("-", 1)[0].strip()  # Pega o banco e o tipo de pagamento
             if chave not in agrupados:
                 agrupados[chave] = []
             agrupados[chave].append(arquivo)
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL")
-        elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
-            for fornecedor, nf_nome in fornecedores.items():
-                if fornecedor in texto_pdf:
-                    agrupados[fornecedor].insert(0, arquivo)
-                    st.write(f"🔗 {nome} associado a {nf_nome}")
+        else:
+            # Associar comprovante ao fornecedor correto pelo conteúdo do PDF
+            for chave, lista in agrupados.items():
+                if chave.lower() in texto_pdf:
+                    lista.append(arquivo)
+                    st.write(f"🔗 {nome} associado a {chave}")
                     break
     
     pdf_resultados = {}
@@ -50,7 +49,7 @@ def organizar_por_fornecedor(arquivos):
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            nome_arquivo_final = fornecedores.get(chave, lista_arquivos[1].name)
+            nome_arquivo_final = lista_arquivos[0].name  # Usa o nome do primeiro documento como final
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
             merger.write(caminho_saida)
             merger.close()
