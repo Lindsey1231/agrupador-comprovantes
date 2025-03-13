@@ -2,35 +2,18 @@ import streamlit as st
 import os
 from PyPDF2 import PdfMerger
 
+# Função para juntar PDFs
 def juntar_pdfs(arquivos):
-    # Dicionário para armazenar os arquivos agrupados
-    agrupados = {}
+    merger = PdfMerger()
     
     for arquivo in arquivos:
-        nome = arquivo.name
-        partes = nome.split(" ")
-        
-        if len(partes) >= 4:
-            chave = " ".join(partes[:4])  # Pega até o número da NF, boleto ou invoice
-            
-            if chave not in agrupados:
-                agrupados[chave] = []
-            
-            agrupados[chave].append(arquivo)
+        merger.append(arquivo)
+
+    caminho_saida = "Comprovante_Agrupado.pdf"
+    merger.write(caminho_saida)
+    merger.close()
     
-    pdf_resultados = []
-    
-    for chave, lista_arquivos in agrupados.items():
-        merger = PdfMerger()
-        for pdf in lista_arquivos:
-            merger.append(pdf)
-        
-        nome_saida = f"{chave} - Comprovante Completo.pdf"
-        merger.write(nome_saida)
-        merger.close()
-        pdf_resultados.append(nome_saida)
-    
-    return pdf_resultados
+    return caminho_saida
 
 # Interface Streamlit
 st.title("Agrupador de Comprovantes de Pagamento")
@@ -43,12 +26,13 @@ if uploaded_files:
         st.write(f"✅ {file.name}")
     
     if st.button("Juntar PDFs"):
-        resultados = juntar_pdfs(uploaded_files)
+        caminho_pdf_final = juntar_pdfs(uploaded_files)
         
-        for resultado in resultados:
+        with open(caminho_pdf_final, "rb") as file:
             st.download_button(
-                label=f"Baixar {resultado}",
-                data=open(resultado, "rb").read(),
-                file_name=resultado,
+                label="Baixar PDF Agrupado",
+                data=file,
+                file_name="Comprovante_Agrupado.pdf",
                 mime="application/pdf"
             )
+
