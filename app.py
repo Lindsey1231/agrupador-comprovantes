@@ -24,50 +24,50 @@ def organizar_por_fornecedor(arquivos):
     agrupados = {}
     st.write("### Arquivos detectados:")
     
-    # Primeiro, identificamos as NFs, boletos ou invoices
+    # Identifica os documentos principais (NF, boleto ou invoice)
     for arquivo in arquivos:
         nome = arquivo.name
         st.write(f"🔹 {nome}")
         texto_pdf = extrair_texto_pdf(arquivo)
         
-        if nome.startswith("(BTG)" ) or nome.startswith("(INTER)") or nome.startswith("(BV)"):
+        if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
-                agrupados[fornecedor_nome] = {"nf": arquivo, "comprovante": None}
+                agrupados[nome] = {"nf": arquivo, "comprovantes": []}
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
     
-    # Agora, associamos os comprovantes de pagamento
+    # Associa os comprovantes de pagamento aos documentos principais
     for arquivo in arquivos:
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         
-        if nome.upper().startswith("PIX"):
-            for fornecedor, docs in agrupados.items():
-                if fornecedor.lower() in texto_pdf:
-                    docs["comprovante"] = arquivo
-                    st.write(f"🔗 {nome} associado a {docs['nf'].name}")
+        if "pix" in nome.lower() or "pagamento" in nome.lower() or "comprovante" in nome.lower():
+            for chave, docs in agrupados.items():
+                if encontrar_nome_fornecedor(texto_pdf) in extrair_texto_pdf(docs["nf"]):
+                    docs["comprovantes"].append(arquivo)
+                    st.write(f"🔗 {nome} associado a {chave}")
                     break
     
     pdf_resultados = {}
     
-    # Criamos os PDFs finais
-    for fornecedor, docs in agrupados.items():
-        if docs["comprovante"]:
+    # Criar PDFs finais para cada fornecedor
+    for chave, docs in agrupados.items():
+        if docs["comprovantes"]:
             merger = PdfMerger()
             temp_files = []
             
-            for pdf in [docs["comprovante"], docs["nf"]]:
+            for pdf in docs["comprovantes"] + [docs["nf"]]:
                 temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
                 with open(temp_path, "wb") as temp_file:
                     temp_file.write(pdf.getbuffer())  
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            nome_arquivo_final = docs["nf"].name  # Usa o nome da NF/boletos/invoice
+            nome_arquivo_final = docs["nf"].name  # Mantém o nome original do documento principal
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
             merger.write(caminho_saida)
             merger.close()
-            pdf_resultados[fornecedor] = caminho_saida
+            pdf_resultados[chave] = caminho_saida
             st.write(f"📂 Arquivo final gerado: {nome_arquivo_final}")
         else:
             st.warning(f"⚠️ Nenhum comprovante encontrado para {docs['nf'].name}")
@@ -91,12 +91,12 @@ if uploaded_files:
         if not resultados:
             st.error("Nenhum arquivo foi processado. Verifique os nomes e tente novamente.")
 
-        for fornecedor, resultado in resultados.items():
+        for chave, resultado in resultados.items():
             with open(resultado, "rb") as file:
                 st.download_button(
-                    label=f"Baixar {fornecedor}",
+                    label=f"Baixar {chave}",
                     data=file,
-                    file_name=fornecedor,
+                    file_name=chave,
                     mime="application/pdf"
                 )
 
