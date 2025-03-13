@@ -59,7 +59,7 @@ def organizar_por_fornecedor(arquivos):
             merger = PdfMerger()
             arquivos_adicionados = set()
             
-            for pdf in [docs["comprovante"], docs["nf"]]:
+            for pdf in [docs["nf"], docs["comprovante"]]:
                 if pdf.name not in arquivos_adicionados:
                     temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
                     with open(temp_path, "wb") as temp_file:
