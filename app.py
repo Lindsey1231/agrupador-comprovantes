@@ -34,7 +34,7 @@ def organizar_por_fornecedor(arquivos):
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovante": None}
+                agrupados[nome] = {"nf": arquivo, "comprovante": None, "fornecedor": fornecedor_nome}
                 fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
     
@@ -102,3 +102,4 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
+
