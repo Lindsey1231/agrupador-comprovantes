@@ -46,9 +46,10 @@ def organizar_por_fornecedor(arquivos):
             fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
             
             for fornecedor, chave in fornecedores.items():
-                if fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave != nome:
-                    agrupados[chave]["comprovante"] = arquivo
-                    st.write(f"🔗 {nome} associado a {chave}")
+                if fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave in agrupados:
+                    if agrupados[chave]["comprovante"] is None:  # Garante que apenas um comprovante seja associado
+                        agrupados[chave]["comprovante"] = arquivo
+                        st.write(f"🔗 {nome} associado a {chave}")
                     break
     
     pdf_resultados = {}
@@ -59,8 +60,8 @@ def organizar_por_fornecedor(arquivos):
             merger = PdfMerger()
             arquivos_adicionados = set()
             
-            for pdf in [docs["nf"], docs["comprovante"]]:
-                if pdf.name not in arquivos_adicionados:
+            for pdf in [docs["comprovante"], docs["nf"]]:
+                if pdf and pdf.name not in arquivos_adicionados:
                     temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
                     with open(temp_path, "wb") as temp_file:
                         temp_file.write(pdf.getbuffer())  
