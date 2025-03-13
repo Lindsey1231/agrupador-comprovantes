@@ -11,21 +11,21 @@ def organizar_por_fornecedor(arquivos):
         partes = nome.split(" ")
         
         if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
-            chave = nome  # Nome do arquivo de NF, boleto ou invoice será usado para nomear o PDF final
+            chave = " ".join(partes[:4])  # Usa os 4 primeiros elementos para garantir a separação correta
             if chave not in agrupados:
                 agrupados[chave] = []
             agrupados[chave].append(arquivo)
         elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
             # Associar comprovante ao fornecedor correto
             for chave in agrupados:
-                if any(part in nome for part in chave.split(" ")):
-                    agrupados[chave].append(arquivo)
+                if chave in nome:
+                    agrupados[chave].insert(0, arquivo)  # Insere o comprovante primeiro
                     break
     
     pdf_resultados = {}
     
     for chave, lista_arquivos in agrupados.items():
-        if len(lista_arquivos) > 1:  # Só junta se houver pelo menos um comprovante + NF/boletos/invoice
+        if len(lista_arquivos) > 1:  # Só junta se houver um comprovante + NF/boletos/invoice
             merger = PdfMerger()
             temp_files = []
             
@@ -36,7 +36,7 @@ def organizar_por_fornecedor(arquivos):
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            caminho_saida = os.path.join(tempfile.gettempdir(), chave)
+            caminho_saida = os.path.join(tempfile.gettempdir(), f"{chave} - Comprovante Completo.pdf")
             merger.write(caminho_saida)
             merger.close()
             pdf_resultados[chave] = caminho_saida
@@ -59,8 +59,8 @@ if uploaded_files:
         for chave, resultado in resultados.items():
             with open(resultado, "rb") as file:
                 st.download_button(
-                    label=f"Baixar {chave}",
+                    label=f"Baixar {chave} - Comprovante Completo.pdf",
                     data=file,
-                    file_name=chave,
+                    file_name=f"{chave} - Comprovante Completo.pdf",
                     mime="application/pdf"
                 )
