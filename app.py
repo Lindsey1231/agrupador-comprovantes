@@ -5,21 +5,29 @@ import re
 from PyPDF2 import PdfMerger, PdfReader
 
 def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF para buscar o nome do fornecedor."""
+    """Extrai texto do PDF para buscar o nome do fornecedor e valores."""
     try:
         reader = PdfReader(arquivo)
         texto = " \n".join([page.extract_text() or "" for page in reader.pages])
-        return texto.lower()
+        return texto
     except:
         return ""
 
 def encontrar_nome_fornecedor(texto):
-    """Busca o primeiro nome do fornecedor no conteúdo do PDF."""
-    padrao = re.compile(r"(\b[A-Z][a-z]+\b)")  # Pega o primeiro nome que começa com letra maiúscula
+    """Busca um nome de fornecedor no conteúdo do PDF, considerando maiúsculas e minúsculas."""
+    padrao = re.compile(r"([A-Za-zÀ-ÖØ-öø-ÿ&\s]+(?:ltda|s\.a\.|me|eireli|ss|associação|empresa|corporation|corp|inc))", re.IGNORECASE)
     correspondencias = padrao.findall(texto)
     if correspondencias:
         return correspondencias[0].strip()
     return ""
+
+def encontrar_valor(texto):
+    """Busca valores monetários no PDF para comparação entre comprovantes e documentos principais."""
+    padrao = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")  # Formato 1.234,56
+    correspondencias = padrao.findall(texto)
+    if correspondencias:
+        return set(correspondencias)  # Retorna um conjunto de valores únicos
+    return set()
 
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
@@ -27,30 +35,39 @@ def organizar_por_fornecedor(arquivos):
     comprovantes = []
     st.write("### Arquivos detectados:")
     
-    # Identifica os documentos principais (NF, boleto ou invoice)
+    # Identifica os documentos principais (NF, boleto, invoice ou guia)
     for arquivo in arquivos:
         nome = arquivo.name
         st.write(f"🔹 {nome}")
         texto_pdf = extrair_texto_pdf(arquivo)
+        valores_pdf = encontrar_valor(texto_pdf)
         
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome}
+                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome, "valores": valores_pdf}
                 fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
         elif nome.lower().startswith("pix"):
-            comprovantes.append((arquivo, texto_pdf))
+            comprovantes.append((arquivo, texto_pdf, valores_pdf))
     
     # Associa os comprovantes de pagamento aos documentos principais
-    for arquivo, texto_pdf in comprovantes:
+    for arquivo, texto_pdf, valores_comprovante in comprovantes:
         nome = arquivo.name
         fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
         
         for fornecedor, chave in fornecedores.items():
-            if fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave in agrupados:
+            valores_nf = agrupados[chave]["valores"]
+            
+            # Primeiro, tenta associar pelo valor
+            if valores_comprovante & valores_nf:  # Se houver valores em comum
                 agrupados[chave]["comprovantes"].append(arquivo)
-                st.write(f"🔗 {nome} associado a {chave}")
+                st.write(f"🔗 {nome} associado a {chave} pelo valor correspondente")
+                break
+            # Se não encontrar pelo valor, associa pelo nome do fornecedor
+            elif fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave in agrupados:
+                agrupados[chave]["comprovantes"].append(arquivo)
+                st.write(f"🔗 {nome} associado a {chave} pelo nome do fornecedor")
                 break
     
     pdf_resultados = {}
