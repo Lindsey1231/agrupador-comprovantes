@@ -13,11 +13,12 @@ def organizar_por_fornecedor(arquivos):
             if chave not in agrupados:
                 agrupados[chave] = []
             agrupados[chave].append(arquivo)
-        else:
-            # Se for um comprovante de pagamento, tentamos encontrar a NF correspondente
+        elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
+            # Se for um comprovante de pagamento, associamos à NF correspondente
             for chave in agrupados:
-                if any(part in nome for part in chave.split(" ")):
-                    agrupados[chave].append(arquivo)
+                fornecedor_nome = " ".join(chave.split(" ")[3:])  # Obtém o nome do fornecedor
+                if fornecedor_nome in nome:
+                    agrupados[chave].insert(0, arquivo)  # Insere o comprovante primeiro no grupo
                     break
     
     pdf_resultados = {}
