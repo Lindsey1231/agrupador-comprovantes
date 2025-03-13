@@ -13,21 +13,24 @@ def organizar_por_fornecedor(arquivos):
         
         if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
             chave = "-".join(nome.split("-")[:2]).strip()  # Usa Banco + Número para identificação
+            fornecedor_nome = nome.split("-")[-1].strip().replace(".pdf", "")  # Obtém o nome do fornecedor completo
             if chave not in agrupados:
-                agrupados[chave] = []
-            agrupados[chave].append(arquivo)
+                agrupados[chave] = {"fornecedor": fornecedor_nome, "arquivos": []}
+            agrupados[chave]["arquivos"].append(arquivo)
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL")
         elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
             # Associar comprovante ao fornecedor correto
-            for chave in agrupados:
-                if chave in nome:
-                    agrupados[chave].insert(0, arquivo)  # Insere o comprovante primeiro
+            fornecedor_nome = nome.split("-")[-1].strip().replace(".pdf", "")
+            for chave, dados in agrupados.items():
+                if dados["fornecedor"].lower() in fornecedor_nome.lower():
+                    agrupados[chave]["arquivos"].insert(0, arquivo)  # Insere o comprovante primeiro
                     st.write(f"🔗 {nome} associado a {chave}")
                     break
     
     pdf_resultados = {}
     
-    for chave, lista_arquivos in agrupados.items():
+    for chave, dados in agrupados.items():
+        lista_arquivos = dados["arquivos"]
         if len(lista_arquivos) > 1:
             merger = PdfMerger()
             temp_files = []
@@ -39,7 +42,7 @@ def organizar_por_fornecedor(arquivos):
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            nome_arquivo_final = lista_arquivos[0].name  # Usa o nome do documento principal como nome final
+            nome_arquivo_final = lista_arquivos[1].name  # Usa o nome do documento principal como nome final
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
             merger.write(caminho_saida)
             merger.close()
@@ -75,4 +78,5 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
+
 
