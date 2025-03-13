@@ -60,12 +60,17 @@ def organizar_por_fornecedor(arquivos):
             merger = PdfMerger()
             temp_files = []
             
-            for pdf in [docs["comprovante"], docs["nf"]]:
-                temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
-                with open(temp_path, "wb") as temp_file:
-                    temp_file.write(pdf.getbuffer())  
-                temp_files.append(temp_path)
-                merger.append(temp_path)
+            arquivos_para_juntar = [docs["comprovante"], docs["nf"]]
+            arquivos_juntos = set()  # Garante que não haja duplicação
+            
+            for pdf in arquivos_para_juntar:
+                if pdf.name not in arquivos_juntos:
+                    temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
+                    with open(temp_path, "wb") as temp_file:
+                        temp_file.write(pdf.getbuffer())  
+                    temp_files.append(temp_path)
+                    merger.append(temp_path)
+                    arquivos_juntos.add(pdf.name)
             
             nome_arquivo_final = docs["nf"].name  # Mantém o nome original do documento principal
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
@@ -103,4 +108,3 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
-
