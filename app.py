@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from PyPDF2 import PdfMerger
-from tempfile import NamedTemporaryFile
+import tempfile
 
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
@@ -16,12 +16,12 @@ def organizar_por_fornecedor(arquivos):
             if chave not in agrupados:
                 agrupados[chave] = []
 
-            # Criar um arquivo temporário para cada PDF enviado
-            temp_file = NamedTemporaryFile(delete=False, suffix=".pdf")
-            temp_file.write(arquivo.read())
-            temp_file.close()
+            # Criar um arquivo temporário local para cada PDF
+            temp_path = os.path.join(tempfile.gettempdir(), nome)
+            with open(temp_path, "wb") as temp_file:
+                temp_file.write(arquivo.read())
 
-            agrupados[chave].append(temp_file.name)
+            agrupados[chave].append(temp_path)
 
     pdf_resultados = {}
 
@@ -30,7 +30,7 @@ def organizar_por_fornecedor(arquivos):
         for pdf_path in lista_arquivos:
             merger.append(pdf_path)
 
-        nome_saida = f"{chave} - Comprovante Completo.pdf"
+        nome_saida = os.path.join(tempfile.gettempdir(), f"{chave} - Comprovante Completo.pdf")
         merger.write(nome_saida)
         merger.close()
         pdf_resultados[chave] = nome_saida
@@ -53,10 +53,11 @@ if uploaded_files:
         for chave, resultado in resultados.items():
             with open(resultado, "rb") as file:
                 st.download_button(
-                    label=f"Baixar {resultado}",
+                    label=f"Baixar {chave} - Comprovante Completo.pdf",
                     data=file,
-                    file_name=resultado,
+                    file_name=f"{chave} - Comprovante Completo.pdf",
                     mime="application/pdf"
                 )
+
 
 
