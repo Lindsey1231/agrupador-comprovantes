@@ -32,7 +32,7 @@ def organizar_por_fornecedor(arquivos):
             for pdf in lista_arquivos:
                 temp_path = os.path.join(tempfile.gettempdir(), pdf.name)
                 with open(temp_path, "wb") as temp_file:
-                    temp_file.write(pdf.read())
+                    temp_file.write(pdf.getbuffer())  # Corrige a leitura dos arquivos do Streamlit
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
