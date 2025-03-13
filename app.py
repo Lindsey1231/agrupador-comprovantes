@@ -7,7 +7,7 @@ def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF para buscar o nome do fornecedor."""
     try:
         reader = PdfReader(arquivo)
-        texto = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        texto = " \n".join([page.extract_text() for page in reader.pages if page.extract_text()])
         return texto.lower()
     except:
         return ""
@@ -16,12 +16,13 @@ def encontrar_nome_fornecedor(texto):
     """Busca um nome de fornecedor mais preciso no conteúdo do PDF."""
     linhas = texto.split("\n")
     for linha in linhas:
-        if any(kw in linha.lower() for kw in ["ltda", "s.a", "me", "eireli", "ss", "associação"]):
+        if any(kw in linha.lower() for kw in ["ltda", "s.a", "me", "eireli", "ss", "associação", "empresa"]):
             return linha.strip()
     return ""
 
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
+    fornecedores = {}
     st.write("### Arquivos detectados:")
     
     # Identifica os documentos principais (NF, boleto ou invoice)
@@ -33,7 +34,8 @@ def organizar_por_fornecedor(arquivos):
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovantes": []}
+                agrupados[nome] = {"nf": arquivo, "comprovante": None}
+                fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
     
     # Associa os comprovantes de pagamento aos documentos principais
@@ -41,10 +43,11 @@ def organizar_por_fornecedor(arquivos):
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         
-        if "pix" in nome.lower() or "pagamento" in nome.lower() or "comprovante" in nome.lower():
-            for chave, docs in agrupados.items():
-                if encontrar_nome_fornecedor(texto_pdf) in extrair_texto_pdf(docs["nf"]):
-                    docs["comprovantes"].append(arquivo)
+        if nome.lower().startswith("pix") or "pagamento" in nome.lower() or "comprovante" in nome.lower():
+            fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
+            for fornecedor, chave in fornecedores.items():
+                if fornecedor_encontrado.lower() in fornecedor:
+                    agrupados[chave]["comprovante"] = arquivo
                     st.write(f"🔗 {nome} associado a {chave}")
                     break
     
@@ -52,11 +55,11 @@ def organizar_por_fornecedor(arquivos):
     
     # Criar PDFs finais para cada fornecedor
     for chave, docs in agrupados.items():
-        if docs["comprovantes"]:
+        if docs["comprovante"]:
             merger = PdfMerger()
             temp_files = []
             
-            for pdf in docs["comprovantes"] + [docs["nf"]]:
+            for pdf in [docs["comprovante"], docs["nf"]]:
                 temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
                 with open(temp_path, "wb") as temp_file:
                     temp_file.write(pdf.getbuffer())  
@@ -99,4 +102,5 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
+
 
