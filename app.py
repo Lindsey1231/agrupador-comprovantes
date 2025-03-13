@@ -3,31 +3,42 @@ import os
 from PyPDF2 import PdfMerger
 import tempfile
 
+def identificar_tipo_arquivo(nome_arquivo):
+    """Classifica se o arquivo é um comprovante de pagamento ou uma NF/Boleto/Invoice"""
+    if any(kw in nome_arquivo.upper() for kw in ["PIX", "COMPROVANTE", "TRANSFERENCIA", "PAGAMENTO"]):
+        return "comprovante"
+    else:
+        return "documento"
+
 def organizar_por_fornecedor(arquivos):
+    """Agrupa os arquivos corretamente por fornecedor"""
     agrupados = {}
 
     for arquivo in arquivos:
         nome = arquivo.name
-        partes = nome.split(" ")
+        tipo = identificar_tipo_arquivo(nome)
 
+        partes = nome.split(" ")
         if len(partes) >= 4:
-            chave = " ".join(partes[:4])  # Pega até o número da NF, boleto ou invoice
+            chave = " ".join(partes[:4])  # Identificação baseada no padrão de nomeação
 
             if chave not in agrupados:
-                agrupados[chave] = []
+                agrupados[chave] = {"comprovantes": [], "documentos": []}
 
-            # Criar um arquivo temporário local para cada PDF
+            # Criar arquivo temporário
             temp_path = os.path.join(tempfile.gettempdir(), nome)
             with open(temp_path, "wb") as temp_file:
                 temp_file.write(arquivo.read())
 
-            agrupados[chave].append(temp_path)
+            agrupados[chave][tipo + "s"].append(temp_path)
 
     pdf_resultados = {}
 
-    for chave, lista_arquivos in agrupados.items():
+    for chave, grupos in agrupados.items():
         merger = PdfMerger()
-        for pdf_path in lista_arquivos:
+
+        # Primeiro junta os comprovantes de pagamento, depois os documentos
+        for pdf_path in grupos["comprovantes"] + grupos["documentos"]:
             merger.append(pdf_path)
 
         nome_saida = os.path.join(tempfile.gettempdir(), f"{chave} - Comprovante Completo.pdf")
@@ -58,6 +69,3 @@ if uploaded_files:
                     file_name=f"{chave} - Comprovante Completo.pdf",
                     mime="application/pdf"
                 )
-
-
-
