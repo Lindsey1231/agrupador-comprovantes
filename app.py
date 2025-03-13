@@ -14,8 +14,8 @@ def extrair_texto_pdf(arquivo):
         return ""
 
 def encontrar_nome_fornecedor(texto):
-    """Busca um nome de fornecedor mais preciso no conteúdo do PDF."""
-    padrao = re.compile(r"([\w\s]+(?:ltda|s\.a\.|me|eireli|ss|associação|empresa))", re.IGNORECASE)
+    """Busca o primeiro nome do fornecedor no conteúdo do PDF."""
+    padrao = re.compile(r"(\b[A-Z][a-z]+\b)")  # Pega o primeiro nome que começa com letra maiúscula
     correspondencias = padrao.findall(texto)
     if correspondencias:
         return correspondencias[0].strip()
