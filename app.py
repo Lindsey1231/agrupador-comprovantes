@@ -8,7 +8,7 @@ def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF para buscar o nome do fornecedor."""
     try:
         reader = PdfReader(arquivo)
-        texto = " \n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        texto = " \n".join([page.extract_text() or "" for page in reader.pages])
         return texto.lower()
     except:
         return ""
@@ -36,7 +36,7 @@ def organizar_por_fornecedor(arquivos):
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovante": None, "fornecedor": fornecedor_nome}
+                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome}
                 fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
         elif nome.lower().startswith("pix"):
@@ -49,20 +49,19 @@ def organizar_por_fornecedor(arquivos):
         
         for fornecedor, chave in fornecedores.items():
             if fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave in agrupados:
-                if agrupados[chave]["comprovante"] is None:  # Garante que apenas um comprovante seja associado
-                    agrupados[chave]["comprovante"] = arquivo
-                    st.write(f"🔗 {nome} associado a {chave}")
+                agrupados[chave]["comprovantes"].append(arquivo)
+                st.write(f"🔗 {nome} associado a {chave}")
                 break
     
     pdf_resultados = {}
     
     # Criar PDFs finais para cada fornecedor
     for chave, docs in agrupados.items():
-        if docs["comprovante"]:
+        if docs["comprovantes"]:
             merger = PdfMerger()
             arquivos_adicionados = set()
             
-            for pdf in [docs["comprovante"], docs["nf"]]:
+            for pdf in docs["comprovantes"] + [docs["nf"]]:
                 if pdf and pdf.name not in arquivos_adicionados:
                     temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
                     with open(temp_path, "wb") as temp_file:
