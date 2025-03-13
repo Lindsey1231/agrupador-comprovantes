@@ -9,11 +9,10 @@ def organizar_por_fornecedor(arquivos):
     
     for arquivo in arquivos:
         nome = arquivo.name
-        partes = nome.split(" ")
         st.write(f"🔹 {nome}")
         
         if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
-            chave = nome  # Usa o nome completo para garantir que cada fornecedor tenha seu próprio arquivo
+            chave = " ".join(nome.split(" ")[:4])  # Usa os 4 primeiros elementos do nome como chave
             if chave not in agrupados:
                 agrupados[chave] = []
             agrupados[chave].append(arquivo)
@@ -21,7 +20,7 @@ def organizar_por_fornecedor(arquivos):
         elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
             # Associar comprovante ao fornecedor correto
             for chave in agrupados:
-                if any(part in nome for part in chave.split(" ")):
+                if chave in nome:
                     agrupados[chave].insert(0, arquivo)  # Insere o comprovante primeiro
                     st.write(f"🔗 {nome} associado a {chave}")
                     break
@@ -40,11 +39,12 @@ def organizar_por_fornecedor(arquivos):
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            caminho_saida = os.path.join(tempfile.gettempdir(), chave)
+            nome_arquivo_final = lista_arquivos[1].name  # Usa o nome do documento principal como nome final
+            caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
             merger.write(caminho_saida)
             merger.close()
             pdf_resultados[chave] = caminho_saida
-            st.write(f"📂 Arquivo final gerado: {chave}")
+            st.write(f"📂 Arquivo final gerado: {nome_arquivo_final}")
     
     return pdf_resultados
 
