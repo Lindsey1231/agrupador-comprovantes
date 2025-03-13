@@ -12,7 +12,7 @@ def organizar_por_fornecedor(arquivos):
         st.write(f"🔹 {nome}")
         
         if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
-            chave = " ".join(nome.split(" ")[:4])  # Usa os 4 primeiros elementos do nome como chave
+            chave = "-".join(nome.split("-")[:2]).strip()  # Usa Banco + Número para identificação
             if chave not in agrupados:
                 agrupados[chave] = []
             agrupados[chave].append(arquivo)
@@ -39,12 +39,14 @@ def organizar_por_fornecedor(arquivos):
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            nome_arquivo_final = lista_arquivos[1].name  # Usa o nome do documento principal como nome final
+            nome_arquivo_final = lista_arquivos[0].name  # Usa o nome do documento principal como nome final
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
             merger.write(caminho_saida)
             merger.close()
             pdf_resultados[chave] = caminho_saida
             st.write(f"📂 Arquivo final gerado: {nome_arquivo_final}")
+        else:
+            st.warning(f"⚠️ Nenhum comprovante encontrado para {chave}")
     
     return pdf_resultados
 
@@ -73,3 +75,4 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
+
