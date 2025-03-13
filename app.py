@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import tempfile
+import re
 from PyPDF2 import PdfMerger, PdfReader
 
 def extrair_texto_pdf(arquivo):
@@ -14,10 +15,10 @@ def extrair_texto_pdf(arquivo):
 
 def encontrar_nome_fornecedor(texto):
     """Busca um nome de fornecedor mais preciso no conteúdo do PDF."""
-    linhas = texto.split("\n")
-    for linha in linhas:
-        if any(kw in linha.lower() for kw in ["ltda", "s.a", "me", "eireli", "ss", "associação", "empresa"]):
-            return linha.strip()
+    padrao = re.compile(r"([\w\s]+(?:ltda|s\.a\.|me|eireli|ss|associação|empresa))", re.IGNORECASE)
+    correspondencias = padrao.findall(texto)
+    if correspondencias:
+        return correspondencias[0].strip()
     return ""
 
 def organizar_por_fornecedor(arquivos):
