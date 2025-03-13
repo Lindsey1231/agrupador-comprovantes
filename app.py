@@ -1,36 +1,44 @@
 import streamlit as st
 import os
-from PyPDF2 import PdfMerger
 import tempfile
+from PyPDF2 import PdfMerger, PdfReader
+
+def extrair_texto_pdf(arquivo):
+    """Extrai texto do PDF para buscar o nome do fornecedor."""
+    try:
+        reader = PdfReader(arquivo)
+        texto = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        return texto.lower()
+    except:
+        return ""
 
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
+    fornecedores = {}
     st.write("### Arquivos detectados:")
     
     for arquivo in arquivos:
         nome = arquivo.name
         st.write(f"🔹 {nome}")
+        texto_pdf = extrair_texto_pdf(arquivo)
         
         if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
-            chave = "-".join(nome.split("-")[:2]).strip()  # Usa Banco + Número para identificação
-            fornecedor_nome = nome.split("-")[-1].strip().replace(".pdf", "")  # Obtém o nome do fornecedor completo
+            chave = nome.rsplit("-", 1)[-1].strip().replace(".pdf", "")
+            fornecedores[chave.lower()] = nome
             if chave not in agrupados:
-                agrupados[chave] = {"fornecedor": fornecedor_nome, "arquivos": []}
-            agrupados[chave]["arquivos"].append(arquivo)
+                agrupados[chave] = []
+            agrupados[chave].append(arquivo)
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL")
         elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
-            # Associar comprovante ao fornecedor correto
-            fornecedor_nome = nome.split("-")[-1].strip().replace(".pdf", "")
-            for chave, dados in agrupados.items():
-                if dados["fornecedor"].lower() in fornecedor_nome.lower():
-                    agrupados[chave]["arquivos"].insert(0, arquivo)  # Insere o comprovante primeiro
-                    st.write(f"🔗 {nome} associado a {chave}")
+            for fornecedor, nf_nome in fornecedores.items():
+                if fornecedor in texto_pdf:
+                    agrupados[fornecedor].insert(0, arquivo)
+                    st.write(f"🔗 {nome} associado a {nf_nome}")
                     break
     
     pdf_resultados = {}
     
-    for chave, dados in agrupados.items():
-        lista_arquivos = dados["arquivos"]
+    for chave, lista_arquivos in agrupados.items():
         if len(lista_arquivos) > 1:
             merger = PdfMerger()
             temp_files = []
@@ -42,7 +50,7 @@ def organizar_por_fornecedor(arquivos):
                 temp_files.append(temp_path)
                 merger.append(temp_path)
             
-            nome_arquivo_final = lista_arquivos[1].name  # Usa o nome do documento principal como nome final
+            nome_arquivo_final = fornecedores.get(chave, lista_arquivos[1].name)
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
             merger.write(caminho_saida)
             merger.close()
@@ -78,5 +86,3 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
-
-
