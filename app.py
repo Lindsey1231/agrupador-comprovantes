@@ -41,15 +41,14 @@ def organizar_por_fornecedor(arquivos):
     # Associa os comprovantes de pagamento aos documentos principais
     for arquivo in arquivos:
         nome = arquivo.name
-        texto_pdf = extrair_texto_pdf(arquivo)
-        
         if nome.lower().startswith("pix") or "pagamento" in nome.lower() or "comprovante" in nome.lower():
+            texto_pdf = extrair_texto_pdf(arquivo)
             fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
+            
             for fornecedor, chave in fornecedores.items():
-                if fornecedor_encontrado.lower() in fornecedor:
-                    if agrupados[chave]["comprovante"] is None:
-                        agrupados[chave]["comprovante"] = arquivo
-                        st.write(f"🔗 {nome} associado a {chave}")
+                if fornecedor_encontrado.lower() in fornecedor and agrupados[chave]["comprovante"] is None:
+                    agrupados[chave]["comprovante"] = arquivo
+                    st.write(f"🔗 {nome} associado a {chave}")
                     break
     
     pdf_resultados = {}
@@ -60,17 +59,12 @@ def organizar_por_fornecedor(arquivos):
             merger = PdfMerger()
             temp_files = []
             
-            arquivos_para_juntar = [docs["comprovante"], docs["nf"]]
-            arquivos_juntos = set()  # Garante que não haja duplicação
-            
-            for pdf in arquivos_para_juntar:
-                if pdf.name not in arquivos_juntos:
-                    temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
-                    with open(temp_path, "wb") as temp_file:
-                        temp_file.write(pdf.getbuffer())  
-                    temp_files.append(temp_path)
-                    merger.append(temp_path)
-                    arquivos_juntos.add(pdf.name)
+            for pdf in [docs["comprovante"], docs["nf"]]:
+                temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
+                with open(temp_path, "wb") as temp_file:
+                    temp_file.write(pdf.getbuffer())  
+                temp_files.append(temp_path)
+                merger.append(temp_path)
             
             nome_arquivo_final = docs["nf"].name  # Mantém o nome original do documento principal
             caminho_saida = os.path.join(tempfile.gettempdir(), nome_arquivo_final)
