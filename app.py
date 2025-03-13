@@ -12,6 +12,14 @@ def extrair_texto_pdf(arquivo):
     except:
         return ""
 
+def encontrar_nome_fornecedor(texto):
+    """Busca um nome de fornecedor mais preciso no conteúdo do PDF."""
+    linhas = texto.split("\n")
+    for linha in linhas:
+        if any(kw in linha.lower() for kw in ["ltda", "s.a", "me", "eireli", "ss", "associação"]):
+            return linha.strip()
+    return ""
+
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
     st.write("### Arquivos detectados:")
@@ -23,7 +31,7 @@ def organizar_por_fornecedor(arquivos):
         texto_pdf = extrair_texto_pdf(arquivo)
         
         if nome.startswith("(BTG)" ) or nome.startswith("(INTER)") or nome.startswith("(BV)"):
-            fornecedor_nome = " ".join(texto_pdf.split()[:5])  # Captura as primeiras palavras do texto
+            fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
                 agrupados[fornecedor_nome] = {"nf": arquivo, "comprovante": None}
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
@@ -35,7 +43,7 @@ def organizar_por_fornecedor(arquivos):
         
         if nome.upper().startswith("PIX"):
             for fornecedor, docs in agrupados.items():
-                if fornecedor in texto_pdf:
+                if fornecedor.lower() in texto_pdf:
                     docs["comprovante"] = arquivo
                     st.write(f"🔗 {nome} associado a {docs['nf'].name}")
                     break
@@ -91,3 +99,4 @@ if uploaded_files:
                     file_name=fornecedor,
                     mime="application/pdf"
                 )
+
