@@ -8,36 +8,38 @@ def organizar_por_fornecedor(arquivos):
     
     for arquivo in arquivos:
         nome = arquivo.name
+        partes = nome.split(" ")
+        
         if any(kw in nome.upper() for kw in ["NF", "BOLETO", "INVOICE"]):
-            chave = nome  # O nome do arquivo de NF, boleto ou invoice será usado para nomear o PDF final
+            chave = nome  # Nome do arquivo de NF, boleto ou invoice será usado para nomear o PDF final
             if chave not in agrupados:
                 agrupados[chave] = []
             agrupados[chave].append(arquivo)
         elif any(kw in nome.upper() for kw in ["PIX", "COMPROVANTE", "PAGAMENTO", "TRANSFERENCIA"]):
-            # Se for um comprovante de pagamento, associamos à NF correspondente
+            # Associar comprovante ao fornecedor correto
             for chave in agrupados:
-                fornecedor_nome = " ".join(chave.split(" ")[3:])  # Obtém o nome do fornecedor
-                if fornecedor_nome in nome:
-                    agrupados[chave].insert(0, arquivo)  # Insere o comprovante primeiro no grupo
+                if any(part in nome for part in chave.split(" ")):
+                    agrupados[chave].append(arquivo)
                     break
     
     pdf_resultados = {}
     
     for chave, lista_arquivos in agrupados.items():
-        merger = PdfMerger()
-        temp_files = []
-        
-        for pdf in lista_arquivos:
-            temp_path = os.path.join(tempfile.gettempdir(), pdf.name)
-            with open(temp_path, "wb") as temp_file:
-                temp_file.write(pdf.read())
-            temp_files.append(temp_path)
-            merger.append(temp_path)
-        
-        caminho_saida = os.path.join(tempfile.gettempdir(), chave)
-        merger.write(caminho_saida)
-        merger.close()
-        pdf_resultados[chave] = caminho_saida
+        if len(lista_arquivos) > 1:  # Só junta se houver pelo menos um comprovante + NF/boletos/invoice
+            merger = PdfMerger()
+            temp_files = []
+            
+            for pdf in lista_arquivos:
+                temp_path = os.path.join(tempfile.gettempdir(), pdf.name)
+                with open(temp_path, "wb") as temp_file:
+                    temp_file.write(pdf.read())
+                temp_files.append(temp_path)
+                merger.append(temp_path)
+            
+            caminho_saida = os.path.join(tempfile.gettempdir(), chave)
+            merger.write(caminho_saida)
+            merger.close()
+            pdf_resultados[chave] = caminho_saida
     
     return pdf_resultados
 
