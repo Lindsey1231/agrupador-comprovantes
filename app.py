@@ -47,8 +47,9 @@ def organizar_por_fornecedor(arquivos):
             fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
             for fornecedor, chave in fornecedores.items():
                 if fornecedor_encontrado.lower() in fornecedor:
-                    agrupados[chave]["comprovante"] = arquivo
-                    st.write(f"🔗 {nome} associado a {chave}")
+                    if agrupados[chave]["comprovante"] is None:
+                        agrupados[chave]["comprovante"] = arquivo
+                        st.write(f"🔗 {nome} associado a {chave}")
                     break
     
     pdf_resultados = {}
@@ -102,5 +103,4 @@ if uploaded_files:
                     file_name=chave,
                     mime="application/pdf"
                 )
-
 
