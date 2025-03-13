@@ -23,6 +23,7 @@ def encontrar_nome_fornecedor(texto):
 def organizar_por_fornecedor(arquivos):
     agrupados = {}
     fornecedores = {}
+    comprovantes = []
     st.write("### Arquivos detectados:")
     
     # Identifica os documentos principais (NF, boleto ou invoice)
@@ -34,32 +35,33 @@ def organizar_por_fornecedor(arquivos):
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
             if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome}
+                agrupados[nome] = {"nf": arquivo, "comprovante": None, "fornecedor": fornecedor_nome}
                 fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
+        elif nome.lower().startswith("pix"):
+            comprovantes.append((arquivo, texto_pdf))
     
     # Associa os comprovantes de pagamento aos documentos principais
-    for arquivo in arquivos:
+    for arquivo, texto_pdf in comprovantes:
         nome = arquivo.name
-        if nome.lower().startswith("pix"):
-            texto_pdf = extrair_texto_pdf(arquivo)
-            fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
-            
-            for fornecedor, chave in fornecedores.items():
-                if fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave in agrupados:
-                    agrupados[chave]["comprovantes"].append(arquivo)
+        fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
+        
+        for fornecedor, chave in fornecedores.items():
+            if fornecedor_encontrado and fornecedor_encontrado.lower() in fornecedor and chave in agrupados:
+                if agrupados[chave]["comprovante"] is None:  # Garante que apenas um comprovante seja associado
+                    agrupados[chave]["comprovante"] = arquivo
                     st.write(f"🔗 {nome} associado a {chave}")
-                    break
+                break
     
     pdf_resultados = {}
     
     # Criar PDFs finais para cada fornecedor
     for chave, docs in agrupados.items():
-        if docs["comprovantes"]:
+        if docs["comprovante"]:
             merger = PdfMerger()
             arquivos_adicionados = set()
             
-            for pdf in docs["comprovantes"] + [docs["nf"]]:
+            for pdf in [docs["comprovante"], docs["nf"]]:
                 if pdf and pdf.name not in arquivos_adicionados:
                     temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
                     with open(temp_path, "wb") as temp_file:
