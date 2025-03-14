@@ -46,29 +46,29 @@ def organizar_por_valor(arquivos):
         if tipo_comp != "comprovante":
             continue
         
-        grupo_chave = None
+        nome_referencia = None
         for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
             if tipo_doc == "documento" and valores_comp & valores_doc:
-                grupo_chave = valores_comp.pop()
+                nome_referencia = nome_doc
                 break
         
-        if grupo_chave is None:
-            grupo_chave = f"Sem Correspondência {nome_comp}"
+        if nome_referencia is None:
+            nome_referencia = f"Sem Correspondência - {nome_comp}"
         
-        if grupo_chave not in agrupados:
-            agrupados[grupo_chave] = []
+        if nome_referencia not in agrupados:
+            agrupados[nome_referencia] = []
         
-        agrupados[grupo_chave].append(comprovante)
+        agrupados[nome_referencia].append(comprovante)
         for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
             if tipo_doc == "documento" and valores_comp & valores_doc:
-                agrupados[grupo_chave].append(doc)
+                agrupados[nome_referencia].append(doc)
     
     with zipfile.ZipFile(zip_path, "w") as zipf:
-        for chave, arquivos in agrupados.items():
+        for nome_final, arquivos in agrupados.items():
             merger = PdfMerger()
             for doc in arquivos:
                 merger.append(doc)
-            output_filename = f"{chave}.pdf"
+            output_filename = nome_final
             output_path = os.path.join(temp_dir, output_filename)
             merger.write(output_path)
             merger.close()
@@ -95,5 +95,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
