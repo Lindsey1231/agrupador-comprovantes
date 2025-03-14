@@ -40,6 +40,14 @@ def encontrar_valor_total_reembolso(texto):
             return None
     return None
 
+def encontrar_nome_beneficiario(texto):
+    """Busca o nome do beneficiário no conteúdo do PDF."""
+    padrao_nome = re.search(r"##\s*([A-Z\s]+)\s*-", texto)
+    if padrao_nome:
+        nome_completo = padrao_nome.group(1).strip()
+        return nome_completo
+    return None
+
 def encontrar_cnpj(texto):
     """Busca CNPJs no conteúdo do PDF e padroniza a formatação."""
     padrao_cnpj = re.findall(r"\b\d{2}[.\/]?\d{3}[.\/]?\d{3}[\/\-]?\d{4}[\/\-]?\d{2}\b", texto)
@@ -61,7 +69,7 @@ def classificar_arquivo(nome):
         return "comprovante"
     return "documento"
 
-def organizar_por_cnpj_cpf_e_valor(arquivos):
+def organizar_arquivos(arquivos):
     st.write("### Processando arquivos...")
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
@@ -75,15 +83,18 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
         texto_pdf = extrair_texto_pdf(arquivo)
         valores = encontrar_valor(texto_pdf)
         valor_total_reembolso = encontrar_valor_total_reembolso(texto_pdf)
+        nome_beneficiario = encontrar_nome_beneficiario(texto_pdf)
         cnpjs = encontrar_cnpj(texto_pdf)
         cpfs = encontrar_cpf(texto_pdf)
         tipo_arquivo = classificar_arquivo(nome)
-        info_arquivos.append((arquivo, nome, valores, valor_total_reembolso, cnpjs, cpfs, tipo_arquivo))
+        info_arquivos.append((arquivo, nome, valores, valor_total_reembolso, nome_beneficiario, cnpjs, cpfs, tipo_arquivo))
     
-    # Agrupa documentos e comprovantes por CNPJ ou CPF
+    # Agrupa documentos e comprovantes por CNPJ, CPF ou nome do beneficiário
     grupos_identificacao = {}
-    for arquivo, nome, valores, valor_total_reembolso, cnpjs, cpfs, tipo_arquivo in info_arquivos:
+    for arquivo, nome, valores, valor_total_reembolso, nome_beneficiario, cnpjs, cpfs, tipo_arquivo in info_arquivos:
         identificacoes = list(cnpjs) + list(cpfs)  # Combina CNPJs e CPFs
+        if nome_beneficiario:
+            identificacoes.append(nome_beneficiario)  # Adiciona o nome do beneficiário
         for identificacao in identificacoes:
             if identificacao not in grupos_identificacao:
                 grupos_identificacao[identificacao] = {"documentos": [], "comprovantes": []}
@@ -97,60 +108,28 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
         documentos = grupo["documentos"]
         comprovantes = grupo["comprovantes"]
         
-        # Se houver mais de um documento ou comprovante para o mesmo CNPJ/CPF, avalia CNPJ/CPF + valor
-        if len(documentos) > 1 or len(comprovantes) > 1:
-            for doc, nome_doc, valores_doc, valor_total_reembolso_doc in documentos:
-                melhor_correspondencia = None
-                
-                # Tenta correspondência por valor total do reembolso
-                if valor_total_reembolso_doc:
-                    for comprovante, nome_comp, valores_comp in comprovantes:
-                        if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
-                            melhor_correspondencia = comprovante
-                            break
-                
-                # Se não encontrou por valor total, tenta por valores individuais
-                if not melhor_correspondencia:
-                    for comprovante, nome_comp, valores_comp in comprovantes:
-                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
-                            melhor_correspondencia = comprovante
-                            break
-                
-                # Se encontrou correspondência, adiciona ao grupo
-                if melhor_correspondencia:
-                    agrupados[nome_doc] = [melhor_correspondencia, doc]
-                    # Remove o comprovante da lista para evitar duplicação
-                    comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
-        else:
-            # Para casos com apenas um documento e/ou comprovante, mantém a lógica original (CNPJ/CPF primeiro, valor depois)
-            for doc, nome_doc, valores_doc, valor_total_reembolso_doc in documentos:
-                melhor_correspondencia = None
-                
-                # Tenta correspondência por CNPJ/CPF
+        for doc, nome_doc, valores_doc, valor_total_reembolso_doc in documentos:
+            melhor_correspondencia = None
+            
+            # Tenta correspondência por valor total do reembolso (para reembolsos)
+            if valor_total_reembolso_doc:
                 for comprovante, nome_comp, valores_comp in comprovantes:
-                    if identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante)) or identificacao in encontrar_cpf(extrair_texto_pdf(comprovante)):
+                    if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
                         melhor_correspondencia = comprovante
                         break
-                
-                # Se não encontrou por CNPJ/CPF, tenta por valor total do reembolso
-                if not melhor_correspondencia and valor_total_reembolso_doc:
-                    for comprovante, nome_comp, valores_comp in comprovantes:
-                        if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
-                            melhor_correspondencia = comprovante
-                            break
-                
-                # Se não encontrou por valor total, tenta por valores individuais
-                if not melhor_correspondencia:
-                    for comprovante, nome_comp, valores_comp in comprovantes:
-                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
-                            melhor_correspondencia = comprovante
-                            break
-                
-                # Se encontrou correspondência, adiciona ao grupo
-                if melhor_correspondencia:
-                    agrupados[nome_doc] = [melhor_correspondencia, doc]
-                    # Remove o comprovante da lista para evitar duplicação
-                    comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
+            
+            # Se não encontrou por valor total, tenta por valores individuais
+            if not melhor_correspondencia:
+                for comprovante, nome_comp, valores_comp in comprovantes:
+                    if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                        melhor_correspondencia = comprovante
+                        break
+            
+            # Se encontrou correspondência, adiciona ao grupo
+            if melhor_correspondencia:
+                agrupados[nome_doc] = [melhor_correspondencia, doc]
+                # Remove o comprovante da lista para evitar duplicação
+                comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
     
     # Adiciona comprovantes sem correspondência
     for identificacao, grupo in grupos_identificacao.items():
@@ -164,7 +143,7 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
             merger = PdfMerger()
             for doc in arquivos:
                 merger.append(doc)
-            output_filename = nome_final
+            output_filename = nome_final + ".pdf"
             output_path = os.path.join(temp_dir, output_filename)
             merger.write(output_path)
             merger.close()
@@ -182,21 +161,25 @@ def main():
     
     if arquivos and len(arquivos) > 0:
         if st.button("🔗 Juntar e Processar PDFs", key="process_button"):
-            pdf_resultados, zip_path = organizar_por_cnpj_cpf_e_valor(arquivos)
+            pdf_resultados, zip_path = organizar_arquivos(arquivos)
             
+            # Exibe botões de download para cada arquivo individual
+            st.write("### 📄 Arquivos Individuais")
             for nome, caminho in pdf_resultados.items():
                 with open(caminho, "rb") as f:
                     st.download_button(
-                        label=f"📄 Baixar {nome}",
+                        label=f"Baixar {nome}",
                         data=f,
                         file_name=nome,
                         mime="application/pdf",
                         key=f"download_{nome}"  # Adicionando um key único para cada botão de download
                     )
             
+            # Exibe botão de download para o arquivo ZIP
+            st.write("### 📥 Arquivo ZIP")
             with open(zip_path, "rb") as f:
                 st.download_button(
-                    label="📥 Baixar todos como ZIP",
+                    label="Baixar todos como ZIP",
                     data=f,
                     file_name="comprovantes_agrupados.zip",
                     mime="application/zip",
