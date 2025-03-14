@@ -74,8 +74,8 @@ def organizar_por_valor(arquivos):
         for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante":
                 correspondencia_valor = any(
-                    any(abs(vc - vd) / vd <= 0.005 for vd in valores_doc)
-                    for vc in valores_comp
+                    any(abs(vc - vd) / vd <= 0.005 for vd in valores_doc if vd != 0)
+                    for vc in valores_comp if vc != 0
                 )
                 
                 correspondencia_cnpj = bool(cnpjs_comp & cnpjs_doc)
@@ -128,4 +128,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
