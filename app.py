@@ -111,20 +111,32 @@ def organizar_por_cnpj_e_valor(arquivos):
 
 def main():
     st.title("Agrupador de Comprovantes de Pagamento")
-    arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True)
+    
+    # Adicionando um key único ao file_uploader
+    arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True, key="file_uploader")
     
     if arquivos and len(arquivos) > 0:
-        if st.button("🔗 Juntar e Processar PDFs"):
+        if st.button("🔗 Juntar e Processar PDFs", key="process_button"):
             pdf_resultados, zip_path = organizar_por_cnpj_e_valor(arquivos)
             
             for nome, caminho in pdf_resultados.items():
                 with open(caminho, "rb") as f:
-                    st.download_button(label=f"📄 Baixar {nome}", data=f, file_name=nome, mime="application/pdf")
+                    st.download_button(
+                        label=f"📄 Baixar {nome}",
+                        data=f,
+                        file_name=nome,
+                        mime="application/pdf",
+                        key=f"download_{nome}"  # Adicionando um key único para cada botão de download
+                    )
             
             with open(zip_path, "rb") as f:
-                st.download_button(label="📥 Baixar todos como ZIP", data=f, file_name="comprovantes_agrupados.zip", mime="application/zip")
+                st.download_button(
+                    label="📥 Baixar todos como ZIP",
+                    data=f,
+                    file_name="comprovantes_agrupados.zip",
+                    mime="application/zip",
+                    key="download_zip"  # Adicionando um key único para o botão de download do ZIP
+                )
 
-if __name__ == "__main__":
-    main()
 if __name__ == "__main__":
     main()
