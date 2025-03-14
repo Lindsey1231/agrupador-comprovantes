@@ -4,58 +4,20 @@ import tempfile
 import re
 import zipfile
 from PyPDF2 import PdfMerger, PdfReader
-from pdf2image import convert_from_path
-import pytesseract
-from PIL import Image
-
-# Configuração do caminho do Tesseract (ajuste conforme necessário)
-# No Windows, defina o caminho do executável do Tesseract:
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF, incluindo OCR para PDFs com imagens."""
+    """Extrai texto do PDF garantindo melhor leitura."""
     try:
-        # Tenta extrair texto diretamente do PDF
         reader = PdfReader(arquivo)
         texto = []
         for page in reader.pages:
             page_text = page.extract_text()
             if page_text:
                 texto.append(page_text)
-        
-        # Se não houver texto, tenta OCR
-        if not texto:
-            st.warning(f"⚠️ O arquivo {arquivo.name} não contém texto legível. Aplicando OCR...")
-            texto = extrair_texto_com_ocr(arquivo)
-        
-        return " \n".join(texto) if texto else ""
+        return " \n".join(texto)
     except Exception as e:
         st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
         return ""
-
-def extrair_texto_com_ocr(arquivo):
-    """Extrai texto de um PDF com imagens usando OCR."""
-    try:
-        # Salva o arquivo temporariamente
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-            tmp_pdf.write(arquivo.getbuffer())
-            tmp_pdf_path = tmp_pdf.name
-        
-        # Converte o PDF em imagens
-        images = convert_from_path(tmp_pdf_path)
-        texto = []
-        
-        # Aplica OCR em cada imagem
-        for image in images:
-            texto.append(pytesseract.image_to_string(image, lang='por'))  # 'por' para português
-        
-        # Remove o arquivo temporário
-        os.unlink(tmp_pdf_path)
-        
-        return texto
-    except Exception as e:
-        st.error(f"Erro ao aplicar OCR no arquivo {arquivo.name}: {str(e)}")
-        return []
 
 def encontrar_valor(texto):
     """Busca valores monetários no conteúdo do PDF."""
@@ -162,5 +124,7 @@ def main():
             with open(zip_path, "rb") as f:
                 st.download_button(label="📥 Baixar todos como ZIP", data=f, file_name="comprovantes_agrupados.zip", mime="application/zip")
 
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()
