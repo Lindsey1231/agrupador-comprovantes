@@ -8,7 +8,7 @@ import zipfile
 from PyPDF2 import PdfMerger, PdfReader
 
 def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF para buscar o nome do fornecedor e valores."""
+    """Extrai texto do PDF para buscar informações."""
     try:
         reader = PdfReader(arquivo)
         texto = " \n".join([page.extract_text() or "" for page in reader.pages])
@@ -29,13 +29,22 @@ def encontrar_nome_fornecedor(texto, tipo_documento):
             return correspondencias[0].strip()
     return ""
 
-def encontrar_valor(texto):
-    """Busca valores monetários no PDF para comparação entre comprovantes e documentos principais."""
-    padrao = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")  # Formato 1.234,56
-    correspondencias = padrao.findall(texto)
-    if correspondencias:
-        return set(correspondencias)
-    return set()
+def encontrar_valores_nf(texto):
+    """Busca valores monetários no PDF e calcula o valor líquido."""
+    padrao_valores = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")  # Formato 1.234,56
+    valores_encontrados = padrao_valores.findall(texto)
+    valores = set(map(lambda x: float(x.replace(".", "").replace(",", ".")), valores_encontrados))
+    
+    valor_bruto = max(valores, default=0)
+    impostos = sum(v for v in valores if v < valor_bruto and "ISS" not in texto)
+    
+    padrao_nd = re.search(r"Nota de D[eé]bito[:\s]+(\d{1,3}(?:\.\d{3})*,\d{2})", texto)
+    valor_nd = float(padrao_nd.group(1).replace(".", "").replace(",", ".")) if padrao_nd else 0
+    
+    valor_liquido = valor_bruto - impostos - valor_nd
+    valores.add(valor_liquido)
+    
+    return valores
 
 def comparar_nomes(nome1, nome2):
     """Compara dois nomes e retorna um índice de similaridade."""
@@ -51,7 +60,7 @@ def organizar_por_fornecedor(arquivos):
         nome = arquivo.name
         st.write(f"🔹 {nome}")
         texto_pdf = extrair_texto_pdf(arquivo)
-        valores_pdf = encontrar_valor(texto_pdf)
+        valores_pdf = encontrar_valores_nf(texto_pdf) if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") else encontrar_valores_nf(texto_pdf)
         
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
@@ -146,3 +155,4 @@ if uploaded_files:
                     file_name="comprovantes_agrupados.zip",
                     mime="application/zip"
                 )
+
