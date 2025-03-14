@@ -39,13 +39,19 @@ def encontrar_cnpj(texto):
     cnpjs_ignorados = {"19307785000178", "45121046000105", "28932155000185"}
     return cnpjs - cnpjs_ignorados
 
+def encontrar_cpf(texto):
+    """Busca CPFs no conteúdo do PDF e padroniza a formatação."""
+    padrao_cpf = re.findall(r"\b\d{3}[.\-]?\d{3}[.\-]?\d{3}[.\-]?\d{2}\b", texto)
+    cpfs = {re.sub(r'[^\d]', '', cpf) for cpf in padrao_cpf} if padrao_cpf else set()
+    return cpfs
+
 def classificar_arquivo(nome):
     """Classifica o tipo de arquivo baseado no nome."""
     if any(kw in nome.lower() for kw in ["comprovante", "pix", "transferencia", "deposito"]):
         return "comprovante"
     return "documento"
 
-def organizar_por_cnpj_e_valor(arquivos):
+def organizar_por_cnpj_cpf_e_valor(arquivos):
     st.write("### Processando arquivos...")
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
@@ -59,31 +65,33 @@ def organizar_por_cnpj_e_valor(arquivos):
         texto_pdf = extrair_texto_pdf(arquivo)
         valores = encontrar_valor(texto_pdf)
         cnpjs = encontrar_cnpj(texto_pdf)
+        cpfs = encontrar_cpf(texto_pdf)
         tipo_arquivo = classificar_arquivo(nome)
-        info_arquivos.append((arquivo, nome, valores, cnpjs, tipo_arquivo))
+        info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
     
-    # Agrupa documentos e comprovantes por CNPJ
-    grupos_cnpj = {}
-    for arquivo, nome, valores, cnpjs, tipo_arquivo in info_arquivos:
-        for cnpj in cnpjs:
-            if cnpj not in grupos_cnpj:
-                grupos_cnpj[cnpj] = {"documentos": [], "comprovantes": []}
+    # Agrupa documentos e comprovantes por CNPJ ou CPF
+    grupos_identificacao = {}
+    for arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo in info_arquivos:
+        identificacoes = list(cnpjs) + list(cpfs)  # Combina CNPJs e CPFs
+        for identificacao in identificacoes:
+            if identificacao not in grupos_identificacao:
+                grupos_identificacao[identificacao] = {"documentos": [], "comprovantes": []}
             if tipo_arquivo == "documento":
-                grupos_cnpj[cnpj]["documentos"].append((arquivo, nome, valores))
+                grupos_identificacao[identificacao]["documentos"].append((arquivo, nome, valores))
             elif tipo_arquivo == "comprovante":
-                grupos_cnpj[cnpj]["comprovantes"].append((arquivo, nome, valores))
+                grupos_identificacao[identificacao]["comprovantes"].append((arquivo, nome, valores))
     
     # Associa documentos e comprovantes
-    for cnpj, grupo in grupos_cnpj.items():
+    for identificacao, grupo in grupos_identificacao.items():
         documentos = grupo["documentos"]
         comprovantes = grupo["comprovantes"]
         
-        # Se houver mais de um documento ou comprovante para o mesmo CNPJ, avalia CNPJ + valor
+        # Se houver mais de um documento ou comprovante para o mesmo CNPJ/CPF, avalia CNPJ/CPF + valor
         if len(documentos) > 1 or len(comprovantes) > 1:
             for doc, nome_doc, valores_doc in documentos:
                 melhor_correspondencia = None
                 
-                # Tenta correspondência por valor dentro do mesmo CNPJ
+                # Tenta correspondência por valor dentro do mesmo CNPJ/CPF
                 for comprovante, nome_comp, valores_comp in comprovantes:
                     if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
                         melhor_correspondencia = comprovante
@@ -95,17 +103,17 @@ def organizar_por_cnpj_e_valor(arquivos):
                     # Remove o comprovante da lista para evitar duplicação
                     comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
         else:
-            # Para casos com apenas um documento e/ou comprovante, mantém a lógica original (CNPJ primeiro, valor depois)
+            # Para casos com apenas um documento e/ou comprovante, mantém a lógica original (CNPJ/CPF primeiro, valor depois)
             for doc, nome_doc, valores_doc in documentos:
                 melhor_correspondencia = None
                 
-                # Tenta correspondência por CNPJ
+                # Tenta correspondência por CNPJ/CPF
                 for comprovante, nome_comp, valores_comp in comprovantes:
-                    if bool(cnpj in encontrar_cnpj(extrair_texto_pdf(comprovante))):
+                    if identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante)) or identificacao in encontrar_cpf(extrair_texto_pdf(comprovante)):
                         melhor_correspondencia = comprovante
                         break
                 
-                # Se não encontrou por CNPJ, tenta por valor
+                # Se não encontrou por CNPJ/CPF, tenta por valor
                 if not melhor_correspondencia:
                     for comprovante, nome_comp, valores_comp in comprovantes:
                         if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
@@ -119,7 +127,7 @@ def organizar_por_cnpj_e_valor(arquivos):
                     comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
     
     # Adiciona comprovantes sem correspondência
-    for cnpj, grupo in grupos_cnpj.items():
+    for identificacao, grupo in grupos_identificacao.items():
         for comprovante, nome_comp, valores_comp in grupo["comprovantes"]:
             nome_referencia = f"Sem Correspondência - {nome_comp}"
             agrupados[nome_referencia] = [comprovante]
@@ -148,7 +156,7 @@ def main():
     
     if arquivos and len(arquivos) > 0:
         if st.button("🔗 Juntar e Processar PDFs", key="process_button"):
-            pdf_resultados, zip_path = organizar_por_cnpj_e_valor(arquivos)
+            pdf_resultados, zip_path = organizar_por_cnpj_cpf_e_valor(arquivos)
             
             for nome, caminho in pdf_resultados.items():
                 with open(caminho, "rb") as f:
