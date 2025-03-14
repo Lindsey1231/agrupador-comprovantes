@@ -73,6 +73,7 @@ def organizar_por_valor(arquivos):
             continue
         
         melhor_correspondencia = None
+        maior_similaridade = 0.0
         
         for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante":
@@ -81,11 +82,13 @@ def organizar_por_valor(arquivos):
                     break
                 if not melhor_correspondencia and bool(cnpjs_comp & cnpjs_doc):
                     melhor_correspondencia = comprovante
-                if not melhor_correspondencia and any(
-                    any(similaridade(nc, nd) > 0.7 for nd in nomes_doc)
-                    for nc in nomes_comp
-                ):
-                    melhor_correspondencia = comprovante
+                if not melhor_correspondencia:
+                    for nc in nomes_comp:
+                        for nd in nomes_doc:
+                            sim = similaridade(nc, nd)
+                            if sim > maior_similaridade:
+                                maior_similaridade = sim
+                                melhor_correspondencia = comprovante if sim > 0.7 else None
         
         if melhor_correspondencia:
             agrupados[nome_doc] = [melhor_correspondencia, doc]
@@ -127,4 +130,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
