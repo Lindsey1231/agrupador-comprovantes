@@ -144,11 +144,7 @@ def organizar_por_fornecedor(arquivos):
                 st.warning(f"⚠️ Nenhum comprovante encontrado para {docs['nf'].name}")
     
     return pdf_resultados, zip_path
-if __name__ == "__main__":
-    st.title("Agrupador de Comprovantes de Pagamento")
-    arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True)
-    if arquivos:
-        organizar_por_fornecedor(arquivos)
+  
 
 
 
