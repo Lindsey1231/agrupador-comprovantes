@@ -139,7 +139,7 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
                 
                 # Tenta correspondência por CNPJ/CPF/nome
                 for comprovante, nome_comp, valores_comp, nome_beneficiario_comp in comprovantes:
-                    if (identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante)) or \
+                    if (identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante))) or \
                        (identificacao in encontrar_cpf(extrair_texto_pdf(comprovante))) or \
                        (nome_beneficiario_doc and nome_beneficiario_doc == nome_beneficiario_comp):
                         melhor_correspondencia = comprovante
