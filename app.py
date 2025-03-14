@@ -30,13 +30,19 @@ def encontrar_nome_fornecedor(texto, tipo_documento):
     return ""
 
 def encontrar_valores_nf(texto):
-    """Busca valores monetários no PDF e calcula o valor líquido."""
+    """Busca valores monetários no PDF e calcula o valor líquido corretamente."""
     padrao_valores = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")  # Formato 1.234,56
     valores_encontrados = padrao_valores.findall(texto)
     valores = set(map(lambda x: float(x.replace(".", "").replace(",", ".")), valores_encontrados))
     
+    if not valores:
+        return set()
+    
     valor_bruto = max(valores, default=0)
-    impostos = sum(v for v in valores if v < valor_bruto and "ISS" not in texto)
+    
+    impostos_padrao = re.compile(r"(IRRF|PIS|COFINS|CSLL|INSS)[:\s]+(\d{1,3}(?:\.\d{3})*,\d{2})", re.IGNORECASE)
+    impostos_encontrados = impostos_padrao.findall(texto)
+    impostos = sum(float(valor.replace(".", "").replace(",", ".")) for _, valor in impostos_encontrados)
     
     padrao_nd = re.search(r"Nota de D[eé]bito[:\s]+(\d{1,3}(?:\.\d{3})*,\d{2})", texto)
     valor_nd = float(padrao_nd.group(1).replace(".", "").replace(",", ".")) if padrao_nd else 0
@@ -60,7 +66,7 @@ def organizar_por_fornecedor(arquivos):
         nome = arquivo.name
         st.write(f"🔹 {nome}")
         texto_pdf = extrair_texto_pdf(arquivo)
-        valores_pdf = encontrar_valores_nf(texto_pdf) if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") else encontrar_valores_nf(texto_pdf)
+        valores_pdf = encontrar_valores_nf(texto_pdf) if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") else set()
         
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
@@ -70,6 +76,7 @@ def organizar_por_fornecedor(arquivos):
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
         elif nome.lower().startswith("pix"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "comprovante")
+            valores_pdf = encontrar_valores_nf(texto_pdf)
             comprovantes.append((arquivo, texto_pdf, valores_pdf, fornecedor_nome))
     
     for arquivo, texto_pdf, valores_comprovante, fornecedor_comprovante in comprovantes:
@@ -155,4 +162,5 @@ if uploaded_files:
                     file_name="comprovantes_agrupados.zip",
                     mime="application/zip"
                 )
+
 
