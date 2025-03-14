@@ -8,13 +8,14 @@ from PyPDF2 import PdfMerger, PdfReader
 from difflib import SequenceMatcher
 
 def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF para buscar informações, garantindo melhor leitura."""
+    """Extrai texto do PDF garantindo melhor leitura."""
     try:
         reader = PdfReader(arquivo)
         texto = []
         for page in reader.pages:
-            if page.extract_text():
-                texto.append(page.extract_text())
+            page_text = page.extract_text()
+            if page_text:
+                texto.append(page_text)
         return " \n".join(texto)
     except Exception as e:
         return f"Erro na extração do texto: {str(e)}"
@@ -31,8 +32,8 @@ def encontrar_valor(texto):
     return valores_processados
 
 def encontrar_cnpj(texto):
-    """Busca CNPJs no conteúdo do PDF, com ou sem pontuação."""
-    padrao_cnpj = re.findall(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b", texto)
+    """Busca CNPJs no conteúdo do PDF."""
+    padrao_cnpj = re.findall(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b", texto)
     return {re.sub(r'[^\d]', '', cnpj) for cnpj in padrao_cnpj} if padrao_cnpj else set()
 
 def encontrar_nome_fornecedor(texto):
@@ -74,8 +75,7 @@ def organizar_por_valor(arquivos):
         for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante":
                 correspondencia_valor = any(
-                    any(abs(vc - vd) / vd <= 0.005 for vd in valores_doc if vd != 0)
-                    for vc in valores_comp if vc != 0
+                    abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0
                 )
                 
                 correspondencia_cnpj = bool(cnpjs_comp & cnpjs_doc)
@@ -128,5 +128,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
