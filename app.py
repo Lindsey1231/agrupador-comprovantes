@@ -29,36 +29,6 @@ def encontrar_nome_fornecedor(texto, tipo_documento):
             return correspondencias[0].strip()
     return ""
 
-def encontrar_valores_nf(texto):
-    """Busca valores monetários no PDF e calcula o valor líquido corretamente."""
-    padrao_valores = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")  # Formato 1.234,56
-    valores_encontrados = padrao_valores.findall(texto)
-    valores = set(map(lambda x: float(x.replace(".", "").replace(",", ".")), valores_encontrados))
-    
-    if not valores:
-        return set()
-    
-    valor_bruto = max(valores, default=0)
-    
-    impostos_padrao = re.compile(r"(IRRF|PIS|COFINS|CSLL|INSS)[:\s]+(\d{1,3}(?:\.\d{3})*,\d{2})", re.IGNORECASE)
-    impostos_encontrados = impostos_padrao.findall(texto)
-    impostos = sum(float(valor.replace(".", "").replace(",", ".")) for _, valor in impostos_encontrados)
-    
-    padrao_nd = re.search(r"Nota de D[eé]bito[:\s]+(\d{1,3}(?:\.\d{3})*,\d{2})", texto)
-    valor_nd = float(padrao_nd.group(1).replace(".", "").replace(",", ".")) if padrao_nd else 0
-    
-    valor_liquido = valor_bruto - impostos - valor_nd
-    valores.add(valor_liquido)
-    
-    return valores
-
-def encontrar_linha_digitavel(texto):
-    """Busca a linha digitável no texto e remove pontos e traços para comparação."""
-    padrao_linha = re.search(r"(\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d{1}\s\d{14})", texto)
-    if padrao_linha:
-        return re.sub(r"[\.\s-]", "", padrao_linha.group(1))
-    return ""
-
 def organizar_por_fornecedor(arquivos):
     st.write("### Processando arquivos...")
     temp_dir = tempfile.mkdtemp()
@@ -70,8 +40,6 @@ def organizar_por_fornecedor(arquivos):
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
-        valores_pdf = encontrar_valores_nf(texto_pdf)
-        linha_digitavel = encontrar_linha_digitavel(texto_pdf)
         
         if nome.lower().startswith("pix"):
             if fornecedor_nome not in agrupados:
@@ -106,16 +74,15 @@ def main():
     arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True)
     
     if arquivos:
-        pdf_resultados, zip_path = organizar_por_fornecedor(arquivos)
-        
-        for nome, caminho in pdf_resultados.items():
-            with open(caminho, "rb") as f:
-                st.download_button(f"Baixar {nome}", f, file_name=nome)
-        
-        with open(zip_path, "rb") as f:
-            st.download_button("📥 Baixar todos como ZIP", f, file_name="comprovantes_agrupados.zip")
+        if st.button("🔗 Juntar e Processar PDFs"):
+            pdf_resultados, zip_path = organizar_por_fornecedor(arquivos)
+            
+            for nome, caminho in pdf_resultados.items():
+                with open(caminho, "rb") as f:
+                    st.download_button(f"Baixar {nome}", f, file_name=nome)
+            
+            with open(zip_path, "rb") as f:
+                st.download_button("📥 Baixar todos como ZIP", f, file_name="comprovantes_agrupados.zip")
 
 if __name__ == "__main__":
     main()
-
-
