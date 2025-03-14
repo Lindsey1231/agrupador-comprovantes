@@ -64,15 +64,40 @@ def organizar_por_fornecedor(arquivos):
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
     pdf_resultados = {}
+    agrupados = {}
+
+    for arquivo in arquivos:
+        nome = arquivo.name
+        texto_pdf = extrair_texto_pdf(arquivo)
+        fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
+        valores_pdf = encontrar_valores_nf(texto_pdf)
+        linha_digitavel = encontrar_linha_digitavel(texto_pdf)
+        
+        if nome.lower().startswith("pix"):
+            if fornecedor_nome not in agrupados:
+                agrupados[fornecedor_nome] = {"comprovantes": [], "documentos": []}
+            agrupados[fornecedor_nome]["comprovantes"].append(arquivo)
+        else:
+            if fornecedor_nome not in agrupados:
+                agrupados[fornecedor_nome] = {"comprovantes": [], "documentos": []}
+            agrupados[fornecedor_nome]["documentos"].append(arquivo)
     
     with zipfile.ZipFile(zip_path, "w") as zipf:
-        for arquivo in arquivos:
-            temp_pdf_path = os.path.join(temp_dir, arquivo.name)
-            with open(temp_pdf_path, "wb") as f:
-                f.write(arquivo.getbuffer())
-            zipf.write(temp_pdf_path, arcname=arquivo.name)
-            pdf_resultados[arquivo.name] = temp_pdf_path
-            st.write(f"📂 Arquivo pronto: {arquivo.name}")
+        for fornecedor, dados in agrupados.items():
+            if dados["comprovantes"] and dados["documentos"]:
+                merger = PdfMerger()
+                for doc in dados["documentos"]:
+                    merger.append(doc)
+                for comp in dados["comprovantes"]:
+                    merger.append(comp)
+                
+                output_filename = f"{fornecedor}.pdf"
+                output_path = os.path.join(temp_dir, output_filename)
+                merger.write(output_path)
+                merger.close()
+                pdf_resultados[output_filename] = output_path
+                zipf.write(output_path, arcname=output_filename)
+                st.write(f"📂 Arquivo gerado: {output_filename}")
     
     return pdf_resultados, zip_path
 
@@ -92,6 +117,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
