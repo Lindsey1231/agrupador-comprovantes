@@ -42,26 +42,22 @@ def organizar_por_valor(arquivos):
         tipo_arquivo = classificar_arquivo(nome)
         info_arquivos.append((arquivo, nome, valores, tipo_arquivo))
     
-    for comprovante, nome_comp, valores_comp, tipo_comp in info_arquivos:
-        if tipo_comp != "comprovante":
+    for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
+        if tipo_doc != "documento":
             continue
         
-        nome_referencia = None
-        for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
-            if tipo_doc == "documento" and valores_comp & valores_doc:
-                nome_referencia = nome_doc
+        for comprovante, nome_comp, valores_comp, tipo_comp in info_arquivos:
+            if tipo_comp == "comprovante" and valores_comp & valores_doc:
+                if nome_doc not in agrupados:
+                    agrupados[nome_doc] = []
+                agrupados[nome_doc].append(comprovante)
+                agrupados[nome_doc].append(doc)
                 break
-        
-        if nome_referencia is None:
+    
+    for comprovante, nome_comp, valores_comp, tipo_comp in info_arquivos:
+        if tipo_comp == "comprovante" and not any(comprovante in lista for lista in agrupados.values()):
             nome_referencia = f"Sem Correspondência - {nome_comp}"
-        
-        if nome_referencia not in agrupados:
-            agrupados[nome_referencia] = []
-        
-        agrupados[nome_referencia].append(comprovante)
-        for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
-            if tipo_doc == "documento" and valores_comp & valores_doc:
-                agrupados[nome_referencia].append(doc)
+            agrupados[nome_referencia] = [comprovante]
     
     with zipfile.ZipFile(zip_path, "w") as zipf:
         for nome_final, arquivos in agrupados.items():
@@ -95,3 +91,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
