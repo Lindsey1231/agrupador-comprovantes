@@ -52,6 +52,13 @@ def encontrar_valores_nf(texto):
     
     return valores
 
+def encontrar_linha_digitavel(texto):
+    """Busca a linha digitável no texto e remove pontos e traços para comparação."""
+    padrao_linha = re.search(r"(\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d{1}\s\d{14})", texto)
+    if padrao_linha:
+        return re.sub(r"[\.\s-]", "", padrao_linha.group(1))
+    return ""
+
 def comparar_nomes(nome1, nome2):
     """Compara dois nomes e retorna um índice de similaridade."""
     return difflib.SequenceMatcher(None, nome1.lower(), nome2.lower()).ratio()
@@ -66,30 +73,37 @@ def organizar_por_fornecedor(arquivos):
         nome = arquivo.name
         st.write(f"🔹 {nome}")
         texto_pdf = extrair_texto_pdf(arquivo)
-        valores_pdf = encontrar_valores_nf(texto_pdf) if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") else set()
+        valores_pdf = encontrar_valores_nf(texto_pdf) if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") or "reembolso" in nome.lower() else set()
+        linha_digitavel = encontrar_linha_digitavel(texto_pdf)
         
-        if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
+        if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") or "reembolso" in nome.lower():
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
             if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome, "valores": valores_pdf}
+                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome, "valores": valores_pdf, "linha": linha_digitavel}
                 fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
         elif nome.lower().startswith("pix"):
             fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "comprovante")
             valores_pdf = encontrar_valores_nf(texto_pdf)
-            comprovantes.append((arquivo, texto_pdf, valores_pdf, fornecedor_nome))
+            linha_comprovante = encontrar_linha_digitavel(texto_pdf)
+            comprovantes.append((arquivo, texto_pdf, valores_pdf, fornecedor_nome, linha_comprovante))
     
-    for arquivo, texto_pdf, valores_comprovante, fornecedor_comprovante in comprovantes:
+    for arquivo, texto_pdf, valores_comprovante, fornecedor_comprovante, linha_comprovante in comprovantes:
         nome = arquivo.name
         melhor_match = None
         maior_similaridade = 0.0
 
         for fornecedor, chave in fornecedores.items():
             valores_nf = agrupados[chave]["valores"]
+            linha_nf = agrupados[chave]["linha"]
             
             if valores_comprovante & valores_nf:
                 agrupados[chave]["comprovantes"].append(arquivo)
                 st.write(f"🔗 {nome} associado a {chave} pelo valor correspondente")
+                break
+            elif linha_comprovante and linha_nf and linha_comprovante == linha_nf:
+                agrupados[chave]["comprovantes"].append(arquivo)
+                st.write(f"🔗 {nome} associado a {chave} pela linha digitável")
                 break
             
             similaridade = comparar_nomes(fornecedor_comprovante, fornecedor)
@@ -119,7 +133,7 @@ def organizar_por_fornecedor(arquivos):
                         merger.append(temp_path)
                         arquivos_adicionados.add(pdf.name)
                 
-                nome_arquivo_final = docs["nf"].name  # Mantém o nome original do documento principal
+                nome_arquivo_final = docs["nf"].name
                 caminho_saida = os.path.join(temp_zip_dir, nome_arquivo_final)
                 merger.write(caminho_saida)
                 merger.close()
@@ -131,36 +145,5 @@ def organizar_por_fornecedor(arquivos):
     
     return pdf_resultados, zip_path
 
-st.title("Agrupador de Comprovantes de Pagamento")
-
-uploaded_files = st.file_uploader("Arraste os arquivos aqui", accept_multiple_files=True, type=["pdf"])
-
-if uploaded_files:
-    st.write("### Arquivos recebidos:")
-    for file in uploaded_files:
-        st.write(f"✅ {file.name}")
-    
-    if st.button("Juntar PDFs e baixar ZIP"):
-        st.write("🔄 Processando arquivos... Aguarde.")
-        resultados, zip_resultado = organizar_por_fornecedor(uploaded_files)
-
-        if not resultados:
-            st.error("Nenhum arquivo foi processado. Verifique os nomes e tente novamente.")
-        else:
-            for chave, resultado in resultados.items():
-                with open(resultado, "rb") as file:
-                    st.download_button(
-                        label=f"Baixar {chave}",
-                        data=file,
-                        file_name=chave,
-                        mime="application/pdf"
-                    )
-            with open(zip_resultado, "rb") as file:
-                st.download_button(
-                    label="Baixar todos os PDFs em ZIP",
-                    data=file,
-                    file_name="comprovantes_agrupados.zip",
-                    mime="application/zip"
-                )
 
 
