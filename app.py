@@ -20,20 +20,13 @@ def encontrar_valor(texto):
     padrao_valor = re.findall(r"\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})\b", texto)
     return set(padrao_valor) if padrao_valor else set()
 
-def encontrar_nome_fornecedor(texto, tipo_documento):
-    """Busca o nome do fornecedor no conteúdo do PDF."""
-    if tipo_documento == "comprovante":
-        padrao_nome = re.search(r"(?i)nome[:\s]+([A-Za-zÀ-ÖØ-öø-ÿ&\s]+)", texto)
-        if padrao_nome:
-            return padrao_nome.group(1).strip()
-    else:
-        padrao_geral = re.compile(r"([A-Za-zÀ-ÖØ-öø-ÿ&\s]+(?:ltda|s\.a\.|me|eireli|ss|associação|empresa|corporation|corp|inc)?)", re.IGNORECASE)
-        correspondencias = padrao_geral.findall(texto)
-        if correspondencias:
-            return correspondencias[0].strip()
-    return ""
+def classificar_arquivo(nome):
+    """Classifica o tipo de arquivo baseado no nome."""
+    if any(kw in nome.lower() for kw in ["comprovante", "pix", "transferencia", "deposito"]):
+        return "comprovante"
+    return "documento"
 
-def organizar_por_valor_e_fornecedor(arquivos):
+def organizar_por_valor(arquivos):
     st.write("### Processando arquivos...")
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
@@ -46,34 +39,36 @@ def organizar_por_valor_e_fornecedor(arquivos):
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         valores = encontrar_valor(texto_pdf)
-        fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
-        
-        if fornecedor_nome == "":
-            fornecedor_nome = "Desconhecido"
-        
-        info_arquivos.append((arquivo, nome, valores, fornecedor_nome))
+        tipo_arquivo = classificar_arquivo(nome)
+        info_arquivos.append((arquivo, nome, valores, tipo_arquivo))
     
-    for arquivo, nome, valores, fornecedor in info_arquivos:
-        correspondente = None
+    for comprovante, nome_comp, valores_comp, tipo_comp in info_arquivos:
+        if tipo_comp != "comprovante":
+            continue
         
-        for outro_arquivo, outro_nome, outro_valores, outro_fornecedor in info_arquivos:
-            if arquivo != outro_arquivo and valores & outro_valores:
-                correspondente = outro_fornecedor
+        grupo_chave = None
+        for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
+            if tipo_doc == "documento" and valores_comp & valores_doc:
+                grupo_chave = valores_comp.pop()
                 break
         
-        fornecedor_final = correspondente if correspondente else fornecedor
+        if grupo_chave is None:
+            grupo_chave = f"Sem Correspondência {nome_comp}"
         
-        if fornecedor_final not in agrupados:
-            agrupados[fornecedor_final] = []
+        if grupo_chave not in agrupados:
+            agrupados[grupo_chave] = []
         
-        agrupados[fornecedor_final].append(arquivo)
+        agrupados[grupo_chave].append(comprovante)
+        for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
+            if tipo_doc == "documento" and valores_comp & valores_doc:
+                agrupados[grupo_chave].append(doc)
     
     with zipfile.ZipFile(zip_path, "w") as zipf:
-        for fornecedor, arquivos in agrupados.items():
+        for chave, arquivos in agrupados.items():
             merger = PdfMerger()
             for doc in arquivos:
                 merger.append(doc)
-            output_filename = f"{fornecedor}.pdf"
+            output_filename = f"{chave}.pdf"
             output_path = os.path.join(temp_dir, output_filename)
             merger.write(output_path)
             merger.close()
@@ -89,7 +84,7 @@ def main():
     
     if arquivos:
         if st.button("🔗 Juntar e Processar PDFs"):
-            pdf_resultados, zip_path = organizar_por_valor_e_fornecedor(arquivos)
+            pdf_resultados, zip_path = organizar_por_valor(arquivos)
             
             for nome, caminho in pdf_resultados.items():
                 with open(caminho, "rb") as f:
@@ -100,4 +95,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
