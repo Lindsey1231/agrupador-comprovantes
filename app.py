@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import tempfile
 import re
-import difflib
 import shutil
 import zipfile
 from PyPDF2 import PdfMerger, PdfReader
@@ -79,10 +78,11 @@ def main():
             
             for nome, caminho in pdf_resultados.items():
                 with open(caminho, "rb") as f:
-                    st.download_button(f"Baixar {nome}", f, file_name=nome)
+                    st.download_button(label=f"📄 Baixar {nome}", data=f, file_name=nome, mime="application/pdf")
             
             with open(zip_path, "rb") as f:
-                st.download_button("📥 Baixar todos como ZIP", f, file_name="comprovantes_agrupados.zip")
+                st.download_button(label="📥 Baixar todos como ZIP", data=f, file_name="comprovantes_agrupados.zip", mime="application/zip")
 
 if __name__ == "__main__":
     main()
+
