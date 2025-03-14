@@ -32,7 +32,6 @@ def encontrar_valor(texto):
 
 def encontrar_valor_total_reembolso(texto):
     """Busca o valor total em arquivos de reembolso."""
-    # Padrão para encontrar o valor total no formato "Total: BRL XXXX,XX"
     padrao_valor_total = re.search(r"Total:\s*BRL\s*([\d.,]+)", texto)
     if padrao_valor_total:
         try:
@@ -43,7 +42,6 @@ def encontrar_valor_total_reembolso(texto):
 
 def encontrar_nome_beneficiario(texto):
     """Busca o nome do beneficiário no conteúdo do PDF."""
-    # Padrão para encontrar o nome no formato "## NOME COMPLETO - ..."
     padrao_nome = re.search(r"##\s*([A-Z\s]+)\s*-", texto)
     if padrao_nome:
         nome_completo = padrao_nome.group(1).strip()
@@ -118,7 +116,7 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
             merger = PdfMerger()
             for doc in arquivos:
                 merger.append(doc)
-            output_filename = nome_final
+            output_filename = nome_final + ".pdf"
             output_path = os.path.join(temp_dir, output_filename)
             merger.write(output_path)
             merger.close()
@@ -138,19 +136,23 @@ def main():
         if st.button("🔗 Juntar e Processar PDFs", key="process_button"):
             pdf_resultados, zip_path = organizar_por_cnpj_cpf_e_valor(arquivos)
             
+            # Exibe botões de download para cada arquivo individual
+            st.write("### 📄 Arquivos Individuais")
             for nome, caminho in pdf_resultados.items():
                 with open(caminho, "rb") as f:
                     st.download_button(
-                        label=f"📄 Baixar {nome}",
+                        label=f"Baixar {nome}",
                         data=f,
                         file_name=nome,
                         mime="application/pdf",
                         key=f"download_{nome}"  # Adicionando um key único para cada botão de download
                     )
             
+            # Exibe botão de download para o arquivo ZIP
+            st.write("### 📥 Arquivo ZIP")
             with open(zip_path, "rb") as f:
                 st.download_button(
-                    label="📥 Baixar todos como ZIP",
+                    label="Baixar todos como ZIP",
                     data=f,
                     file_name="comprovantes_agrupados.zip",
                     mime="application/zip",
