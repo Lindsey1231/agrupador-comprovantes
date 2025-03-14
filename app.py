@@ -30,6 +30,16 @@ def encontrar_valor(texto):
             continue
     return valores_processados
 
+def encontrar_valor_total_reembolso(texto):
+    """Busca o valor total em arquivos de reembolso."""
+    padrao_valor_total = re.search(r"Total:\s*BRL\s*([\d.,]+)", texto)
+    if padrao_valor_total:
+        try:
+            return float(padrao_valor_total.group(1).replace('.', '').replace(',', '.'))
+        except ValueError:
+            return None
+    return None
+
 def encontrar_cnpj(texto):
     """Busca CNPJs no conteúdo do PDF e padroniza a formatação."""
     padrao_cnpj = re.findall(r"\b\d{2}[.\/]?\d{3}[.\/]?\d{3}[\/\-]?\d{4}[\/\-]?\d{2}\b", texto)
@@ -64,20 +74,21 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         valores = encontrar_valor(texto_pdf)
+        valor_total_reembolso = encontrar_valor_total_reembolso(texto_pdf)
         cnpjs = encontrar_cnpj(texto_pdf)
         cpfs = encontrar_cpf(texto_pdf)
         tipo_arquivo = classificar_arquivo(nome)
-        info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
+        info_arquivos.append((arquivo, nome, valores, valor_total_reembolso, cnpjs, cpfs, tipo_arquivo))
     
     # Agrupa documentos e comprovantes por CNPJ ou CPF
     grupos_identificacao = {}
-    for arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo in info_arquivos:
+    for arquivo, nome, valores, valor_total_reembolso, cnpjs, cpfs, tipo_arquivo in info_arquivos:
         identificacoes = list(cnpjs) + list(cpfs)  # Combina CNPJs e CPFs
         for identificacao in identificacoes:
             if identificacao not in grupos_identificacao:
                 grupos_identificacao[identificacao] = {"documentos": [], "comprovantes": []}
             if tipo_arquivo == "documento":
-                grupos_identificacao[identificacao]["documentos"].append((arquivo, nome, valores))
+                grupos_identificacao[identificacao]["documentos"].append((arquivo, nome, valores, valor_total_reembolso))
             elif tipo_arquivo == "comprovante":
                 grupos_identificacao[identificacao]["comprovantes"].append((arquivo, nome, valores))
     
@@ -88,14 +99,22 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
         
         # Se houver mais de um documento ou comprovante para o mesmo CNPJ/CPF, avalia CNPJ/CPF + valor
         if len(documentos) > 1 or len(comprovantes) > 1:
-            for doc, nome_doc, valores_doc in documentos:
+            for doc, nome_doc, valores_doc, valor_total_reembolso_doc in documentos:
                 melhor_correspondencia = None
                 
-                # Tenta correspondência por valor dentro do mesmo CNPJ/CPF
-                for comprovante, nome_comp, valores_comp in comprovantes:
-                    if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
-                        melhor_correspondencia = comprovante
-                        break
+                # Tenta correspondência por valor total do reembolso
+                if valor_total_reembolso_doc:
+                    for comprovante, nome_comp, valores_comp in comprovantes:
+                        if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
+                            melhor_correspondencia = comprovante
+                            break
+                
+                # Se não encontrou por valor total, tenta por valores individuais
+                if not melhor_correspondencia:
+                    for comprovante, nome_comp, valores_comp in comprovantes:
+                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                            melhor_correspondencia = comprovante
+                            break
                 
                 # Se encontrou correspondência, adiciona ao grupo
                 if melhor_correspondencia:
@@ -104,7 +123,7 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
                     comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
         else:
             # Para casos com apenas um documento e/ou comprovante, mantém a lógica original (CNPJ/CPF primeiro, valor depois)
-            for doc, nome_doc, valores_doc in documentos:
+            for doc, nome_doc, valores_doc, valor_total_reembolso_doc in documentos:
                 melhor_correspondencia = None
                 
                 # Tenta correspondência por CNPJ/CPF
@@ -113,7 +132,14 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
                         melhor_correspondencia = comprovante
                         break
                 
-                # Se não encontrou por CNPJ/CPF, tenta por valor
+                # Se não encontrou por CNPJ/CPF, tenta por valor total do reembolso
+                if not melhor_correspondencia and valor_total_reembolso_doc:
+                    for comprovante, nome_comp, valores_comp in comprovantes:
+                        if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
+                            melhor_correspondencia = comprovante
+                            break
+                
+                # Se não encontrou por valor total, tenta por valores individuais
                 if not melhor_correspondencia:
                     for comprovante, nome_comp, valores_comp in comprovantes:
                         if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
