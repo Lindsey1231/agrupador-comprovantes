@@ -5,15 +5,19 @@ import re
 import shutil
 import zipfile
 from PyPDF2 import PdfMerger, PdfReader
+from difflib import SequenceMatcher
 
 def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF para buscar informações."""
+    """Extrai texto do PDF para buscar informações, garantindo melhor leitura."""
     try:
         reader = PdfReader(arquivo)
-        texto = " \n".join([page.extract_text() or "" for page in reader.pages])
-        return texto
-    except:
-        return ""
+        texto = []
+        for page in reader.pages:
+            if page.extract_text():
+                texto.append(page.extract_text())
+        return " \n".join(texto)
+    except Exception as e:
+        return f"Erro na extração do texto: {str(e)}"
 
 def encontrar_valor(texto):
     """Busca valores monetários no conteúdo do PDF."""
@@ -21,12 +25,12 @@ def encontrar_valor(texto):
     return set(padrao_valor) if padrao_valor else set()
 
 def encontrar_cnpj(texto):
-    """Busca CNPJs no conteúdo do PDF."""
-    padrao_cnpj = re.findall(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b", texto)
-    return set(padrao_cnpj) if padrao_cnpj else set()
+    """Busca CNPJs no conteúdo do PDF, com ou sem pontuação."""
+    padrao_cnpj = re.findall(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b", texto)
+    return {re.sub(r'[^\d]', '', cnpj) for cnpj in padrao_cnpj} if padrao_cnpj else set()
 
 def encontrar_nome_fornecedor(texto):
-    """Busca um nome de fornecedor provável baseado em palavras-chave."""
+    """Busca um nome de fornecedor provável baseado em padrões de texto."""
     padrao_nome = re.findall(r"([A-Z\s&.,-]{5,})", texto)
     return set(padrao_nome) if padrao_nome else set()
 
@@ -36,13 +40,16 @@ def classificar_arquivo(nome):
         return "comprovante"
     return "documento"
 
+def similaridade(a, b):
+    """Calcula similaridade entre duas strings."""
+    return SequenceMatcher(None, a, b).ratio()
+
 def organizar_por_valor(arquivos):
     st.write("### Processando arquivos...")
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
     pdf_resultados = {}
     agrupados = {}
-    
     info_arquivos = []
     
     for arquivo in arquivos:
@@ -60,14 +67,26 @@ def organizar_por_valor(arquivos):
         
         for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante":
+                valores_comp_convertidos = {float(v.replace(',', '.')) for v in valores_comp}
+                valores_doc_convertidos = {float(v.replace(',', '.')) for v in valores_doc}
                 
-                if valores_comp & valores_doc:
-                    if cnpjs_comp & cnpjs_doc or nomes_comp & nomes_doc:
-                        if nome_doc not in agrupados:
-                            agrupados[nome_doc] = []
-                        agrupados[nome_doc].append(comprovante)
-                        agrupados[nome_doc].append(doc)
-                        break
+                correspondencia_valor = any(
+                    any(abs(vc - vd) / vd <= 0.005 for vd in valores_doc_convertidos)
+                    for vc in valores_comp_convertidos
+                )
+                
+                correspondencia_cnpj = bool(cnpjs_comp & cnpjs_doc)
+                correspondencia_nome = any(
+                    any(similaridade(nc, nd) > 0.7 for nd in nomes_doc)
+                    for nc in nomes_comp
+                )
+                
+                if correspondencia_valor and (correspondencia_cnpj or correspondencia_nome):
+                    if nome_doc not in agrupados:
+                        agrupados[nome_doc] = []
+                    agrupados[nome_doc].append(comprovante)
+                    agrupados[nome_doc].append(doc)
+                    break
     
     for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
         if tipo_comp == "comprovante" and not any(comprovante in lista for lista in agrupados.values()):
