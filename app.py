@@ -113,17 +113,24 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
             for doc, nome_doc, valores_doc, valor_total_reembolso_doc, primeiro_nome_doc in documentos:
                 melhor_correspondencia = None
                 
-                # Tenta correspondência por valor total do reembolso
-                if valor_total_reembolso_doc:
+                # Tenta correspondência por CNPJ/CPF
+                for comprovante, nome_comp, valores_comp, primeiro_nome_comp in comprovantes:
+                    if (identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante))) or \
+                       (identificacao in encontrar_cpf(extrair_texto_pdf(comprovante))):
+                        melhor_correspondencia = comprovante
+                        break
+                
+                # Se não encontrou por CNPJ/CPF, tenta por valor total (apenas para reembolsos)
+                if not melhor_correspondencia and valor_total_reembolso_doc:
                     for comprovante, nome_comp, valores_comp, primeiro_nome_comp in comprovantes:
                         if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
                             melhor_correspondencia = comprovante
                             break
                 
-                # Se não encontrou por valor total, tenta por valores individuais
-                if not melhor_correspondencia:
+                # Se não encontrou por valor total, tenta por primeiro nome (apenas para reembolsos)
+                if not melhor_correspondencia and primeiro_nome_doc:
                     for comprovante, nome_comp, valores_comp, primeiro_nome_comp in comprovantes:
-                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                        if primeiro_nome_doc == primeiro_nome_comp:
                             melhor_correspondencia = comprovante
                             break
                 
@@ -144,17 +151,10 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
                         melhor_correspondencia = comprovante
                         break
                 
-                # Se não encontrou por CNPJ/CPF, tenta por valor total do reembolso (apenas para reembolsos)
-                if not melhor_correspondencia and valor_total_reembolso_doc:
+                # Se não encontrou por CNPJ/CPF, tenta por valor
+                if not melhor_correspondencia:
                     for comprovante, nome_comp, valores_comp, primeiro_nome_comp in comprovantes:
-                        if any(abs(vc - valor_total_reembolso_doc) / valor_total_reembolso_doc <= 0.005 for vc in valores_comp):
-                            melhor_correspondencia = comprovante
-                            break
-                
-                # Se não encontrou por valor total, tenta por primeiro nome (apenas para reembolsos)
-                if not melhor_correspondencia and primeiro_nome_doc:
-                    for comprovante, nome_comp, valores_comp, primeiro_nome_comp in comprovantes:
-                        if primeiro_nome_doc == primeiro_nome_comp:
+                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
                             melhor_correspondencia = comprovante
                             break
                 
