@@ -22,7 +22,13 @@ def extrair_texto_pdf(arquivo):
 def encontrar_valor(texto):
     """Busca valores monetários no conteúdo do PDF."""
     padrao_valor = re.findall(r"\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})\b", texto)
-    return set(padrao_valor) if padrao_valor else set()
+    valores_processados = set()
+    for valor in padrao_valor:
+        try:
+            valores_processados.add(float(valor.replace('.', '').replace(',', '.')))
+        except ValueError:
+            continue
+    return valores_processados
 
 def encontrar_cnpj(texto):
     """Busca CNPJs no conteúdo do PDF, com ou sem pontuação."""
@@ -67,12 +73,9 @@ def organizar_por_valor(arquivos):
         
         for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante":
-                valores_comp_convertidos = {float(v.replace(',', '.')) for v in valores_comp}
-                valores_doc_convertidos = {float(v.replace(',', '.')) for v in valores_doc}
-                
                 correspondencia_valor = any(
-                    any(abs(vc - vd) / vd <= 0.005 for vd in valores_doc_convertidos)
-                    for vc in valores_comp_convertidos
+                    any(abs(vc - vd) / vd <= 0.005 for vd in valores_doc)
+                    for vc in valores_comp
                 )
                 
                 correspondencia_cnpj = bool(cnpjs_comp & cnpjs_doc)
