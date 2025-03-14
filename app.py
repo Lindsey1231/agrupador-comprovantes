@@ -84,7 +84,7 @@ def organizar_por_valor(arquivos):
                     for nc in nomes_comp
                 )
                 
-                if correspondencia_valor and (correspondencia_cnpj or correspondencia_nome):
+                if correspondencia_valor or correspondencia_cnpj or correspondencia_nome:
                     if nome_doc not in agrupados:
                         agrupados[nome_doc] = []
                     agrupados[nome_doc].append(comprovante)
@@ -115,7 +115,7 @@ def main():
     st.title("Agrupador de Comprovantes de Pagamento")
     arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True)
     
-    if arquivos:
+    if arquivos is not None and len(arquivos) > 0:
         if st.button("🔗 Juntar e Processar PDFs"):
             pdf_resultados, zip_path = organizar_por_valor(arquivos)
             
@@ -128,6 +128,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
