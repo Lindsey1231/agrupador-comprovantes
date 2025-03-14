@@ -87,68 +87,16 @@ def organizar_por_fornecedor(arquivos):
             valores_pdf = encontrar_valores_nf(texto_pdf)
             linha_comprovante = encontrar_linha_digitavel(texto_pdf)
             comprovantes.append((arquivo, texto_pdf, valores_pdf, fornecedor_nome, linha_comprovante))
-    
-    for arquivo, texto_pdf, valores_comprovante, fornecedor_comprovante, linha_comprovante in comprovantes:
-        nome = arquivo.name
-        melhor_match = None
-        maior_similaridade = 0.0
 
-        for fornecedor, chave in fornecedores.items():
-            valores_nf = agrupados[chave]["valores"]
-            linha_nf = agrupados[chave]["linha"]
-            
-            if valores_comprovante & valores_nf:
-                agrupados[chave]["comprovantes"].append(arquivo)
-                st.write(f"🔗 {nome} associado a {chave} pelo valor correspondente")
-                break
-            elif linha_comprovante and linha_nf and linha_comprovante == linha_nf:
-                agrupados[chave]["comprovantes"].append(arquivo)
-                st.write(f"🔗 {nome} associado a {chave} pela linha digitável")
-                break
-            
-            similaridade = comparar_nomes(fornecedor_comprovante, fornecedor)
-            if similaridade > maior_similaridade:
-                melhor_match = chave
-                maior_similaridade = similaridade
-        
-        if melhor_match and maior_similaridade > 0.7:
-            agrupados[melhor_match]["comprovantes"].append(arquivo)
-            st.write(f"🔗 {nome} associado a {melhor_match} pelo nome do fornecedor (similaridade {maior_similaridade:.2f})")
-    
-    pdf_resultados = {}
-    temp_zip_dir = tempfile.mkdtemp()
-    zip_path = os.path.join(tempfile.gettempdir(), "comprovantes_agrupados.zip")
-    
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        for chave, docs in agrupados.items():
-            if docs["comprovantes"]:
-                merger = PdfMerger()
-                arquivos_adicionados = set()
-                
-                for pdf in docs["comprovantes"] + [docs["nf"]]:
-                    if pdf and pdf.name not in arquivos_adicionados:
-                        temp_path = os.path.join(tempfile.gettempdir(), pdf.name.replace(" ", "_"))
-                        with open(temp_path, "wb") as temp_file:
-                            temp_file.write(pdf.getbuffer())  
-                        merger.append(temp_path)
-                        arquivos_adicionados.add(pdf.name)
-                
-                nome_arquivo_final = docs["nf"].name
-                caminho_saida = os.path.join(temp_zip_dir, nome_arquivo_final)
-                merger.write(caminho_saida)
-                merger.close()
-                zipf.write(caminho_saida, arcname=nome_arquivo_final)
-                pdf_resultados[chave] = caminho_saida
-                st.write(f"📂 Arquivo final gerado: {nome_arquivo_final}")
-            else:
-                st.warning(f"⚠️ Nenhum comprovante encontrado para {docs['nf'].name}")
-    
-    return pdf_resultados, zip_path
-  if __name__ == "__main__":
+def main():
     st.title("Agrupador de Comprovantes de Pagamento")
     arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True)
     if arquivos:
         organizar_por_fornecedor(arquivos)
+
+if __name__ == "__main__":
+    main()
+
 
 
 
