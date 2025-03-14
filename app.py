@@ -16,12 +16,17 @@ def extrair_texto_pdf(arquivo):
     except:
         return ""
 
-def encontrar_nome_fornecedor(texto):
-    """Busca um nome de fornecedor no conteúdo do PDF, considerando maiúsculas e minúsculas."""
-    padrao = re.compile(r"([A-Za-zÀ-ÖØ-öø-ÿ&\s]+(?:ltda|s\.a\.|me|eireli|ss|associação|empresa|corporation|corp|inc)?)", re.IGNORECASE)
-    correspondencias = padrao.findall(texto)
-    if correspondencias:
-        return correspondencias[0].strip()
+def encontrar_nome_fornecedor(texto, tipo_documento):
+    """Busca o nome do fornecedor no conteúdo do PDF."""
+    if tipo_documento == "comprovante":
+        padrao_nome = re.search(r"(?i)nome[:\s]+([A-Za-zÀ-ÖØ-öø-ÿ&\s]+)", texto)
+        if padrao_nome:
+            return padrao_nome.group(1).strip()
+    else:
+        padrao_geral = re.compile(r"([A-Za-zÀ-ÖØ-öø-ÿ&\s]+(?:ltda|s\.a\.|me|eireli|ss|associação|empresa|corporation|corp|inc)?)", re.IGNORECASE)
+        correspondencias = padrao_geral.findall(texto)
+        if correspondencias:
+            return correspondencias[0].strip()
     return ""
 
 def encontrar_valor(texto):
@@ -29,7 +34,7 @@ def encontrar_valor(texto):
     padrao = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})")  # Formato 1.234,56
     correspondencias = padrao.findall(texto)
     if correspondencias:
-        return set(correspondencias)  # Retorna um conjunto de valores únicos
+        return set(correspondencias)
     return set()
 
 def comparar_nomes(nome1, nome2):
@@ -42,7 +47,6 @@ def organizar_por_fornecedor(arquivos):
     comprovantes = []
     st.write("### Arquivos detectados:")
     
-    # Identifica os documentos principais (NF, boleto, invoice ou guia)
     for arquivo in arquivos:
         nome = arquivo.name
         st.write(f"🔹 {nome}")
@@ -50,37 +54,34 @@ def organizar_por_fornecedor(arquivos):
         valores_pdf = encontrar_valor(texto_pdf)
         
         if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)"):
-            fornecedor_nome = encontrar_nome_fornecedor(texto_pdf)
+            fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
             if fornecedor_nome:
                 agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome, "valores": valores_pdf}
                 fornecedores[fornecedor_nome.lower()] = nome
             st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
         elif nome.lower().startswith("pix"):
-            comprovantes.append((arquivo, texto_pdf, valores_pdf))
+            fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "comprovante")
+            comprovantes.append((arquivo, texto_pdf, valores_pdf, fornecedor_nome))
     
-    # Associa os comprovantes de pagamento aos documentos principais
-    for arquivo, texto_pdf, valores_comprovante in comprovantes:
+    for arquivo, texto_pdf, valores_comprovante, fornecedor_comprovante in comprovantes:
         nome = arquivo.name
-        fornecedor_encontrado = encontrar_nome_fornecedor(texto_pdf)
         melhor_match = None
         maior_similaridade = 0.0
 
         for fornecedor, chave in fornecedores.items():
             valores_nf = agrupados[chave]["valores"]
             
-            # Primeiro, tenta associar pelo valor
-            if valores_comprovante & valores_nf:  # Se houver valores em comum
+            if valores_comprovante & valores_nf:
                 agrupados[chave]["comprovantes"].append(arquivo)
                 st.write(f"🔗 {nome} associado a {chave} pelo valor correspondente")
                 break
-            # Se não encontrar pelo valor, tenta associar pelo nome com similaridade
-            similaridade = comparar_nomes(fornecedor_encontrado, fornecedor)
-            if similaridade > maior_similaridade:  # Pega o melhor match
+            
+            similaridade = comparar_nomes(fornecedor_comprovante, fornecedor)
+            if similaridade > maior_similaridade:
                 melhor_match = chave
                 maior_similaridade = similaridade
         
-        # Se encontrou um nome similar, faz a associação
-        if melhor_match and maior_similaridade > 0.7:  # Usa um limite de 70% de similaridade
+        if melhor_match and maior_similaridade > 0.7:
             agrupados[melhor_match]["comprovantes"].append(arquivo)
             st.write(f"🔗 {nome} associado a {melhor_match} pelo nome do fornecedor (similaridade {maior_similaridade:.2f})")
     
@@ -88,7 +89,6 @@ def organizar_por_fornecedor(arquivos):
     temp_zip_dir = tempfile.mkdtemp()
     zip_path = os.path.join(tempfile.gettempdir(), "comprovantes_agrupados.zip")
     
-    # Criar PDFs finais para cada fornecedor
     with zipfile.ZipFile(zip_path, "w") as zipf:
         for chave, docs in agrupados.items():
             if docs["comprovantes"]:
@@ -108,13 +108,13 @@ def organizar_por_fornecedor(arquivos):
                 merger.write(caminho_saida)
                 merger.close()
                 zipf.write(caminho_saida, arcname=nome_arquivo_final)
+                pdf_resultados[chave] = caminho_saida
                 st.write(f"📂 Arquivo final gerado: {nome_arquivo_final}")
             else:
                 st.warning(f"⚠️ Nenhum comprovante encontrado para {docs['nf'].name}")
     
-    return zip_path
+    return pdf_resultados, zip_path
 
-# Interface Streamlit
 st.title("Agrupador de Comprovantes de Pagamento")
 
 uploaded_files = st.file_uploader("Arraste os arquivos aqui", accept_multiple_files=True, type=["pdf"])
@@ -126,11 +126,19 @@ if uploaded_files:
     
     if st.button("Juntar PDFs e baixar ZIP"):
         st.write("🔄 Processando arquivos... Aguarde.")
-        zip_resultado = organizar_por_fornecedor(uploaded_files)
+        resultados, zip_resultado = organizar_por_fornecedor(uploaded_files)
 
-        if not zip_resultado:
+        if not resultados:
             st.error("Nenhum arquivo foi processado. Verifique os nomes e tente novamente.")
         else:
+            for chave, resultado in resultados.items():
+                with open(resultado, "rb") as file:
+                    st.download_button(
+                        label=f"Baixar {chave}",
+                        data=file,
+                        file_name=chave,
+                        mime="application/pdf"
+                    )
             with open(zip_resultado, "rb") as file:
                 st.download_button(
                     label="Baixar todos os PDFs em ZIP",
