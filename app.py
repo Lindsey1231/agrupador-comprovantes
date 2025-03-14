@@ -59,43 +59,40 @@ def encontrar_linha_digitavel(texto):
         return re.sub(r"[\.\s-]", "", padrao_linha.group(1))
     return ""
 
-def comparar_nomes(nome1, nome2):
-    """Compara dois nomes e retorna um índice de similaridade."""
-    return difflib.SequenceMatcher(None, nome1.lower(), nome2.lower()).ratio()
-
 def organizar_por_fornecedor(arquivos):
-    agrupados = {}
-    fornecedores = {}
-    comprovantes = []
-    st.write("### Arquivos detectados:")
+    st.write("### Processando arquivos...")
+    temp_dir = tempfile.mkdtemp()
+    zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
+    pdf_resultados = {}
     
-    for arquivo in arquivos:
-        nome = arquivo.name
-        st.write(f"🔹 {nome}")
-        texto_pdf = extrair_texto_pdf(arquivo)
-        valores_pdf = encontrar_valores_nf(texto_pdf) if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") or "reembolso" in nome.lower() else set()
-        linha_digitavel = encontrar_linha_digitavel(texto_pdf)
-        
-        if nome.startswith("(BTG)") or nome.startswith("(INTER)") or nome.startswith("(BV)") or "reembolso" in nome.lower():
-            fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "documento")
-            if fornecedor_nome:
-                agrupados[nome] = {"nf": arquivo, "comprovantes": [], "fornecedor": fornecedor_nome, "valores": valores_pdf, "linha": linha_digitavel}
-                fornecedores[fornecedor_nome.lower()] = nome
-            st.write(f"✅ {nome} identificado como DOCUMENTO PRINCIPAL para {fornecedor_nome}")
-        elif nome.lower().startswith("pix"):
-            fornecedor_nome = encontrar_nome_fornecedor(texto_pdf, "comprovante")
-            valores_pdf = encontrar_valores_nf(texto_pdf)
-            linha_comprovante = encontrar_linha_digitavel(texto_pdf)
-            comprovantes.append((arquivo, texto_pdf, valores_pdf, fornecedor_nome, linha_comprovante))
+    with zipfile.ZipFile(zip_path, "w") as zipf:
+        for arquivo in arquivos:
+            temp_pdf_path = os.path.join(temp_dir, arquivo.name)
+            with open(temp_pdf_path, "wb") as f:
+                f.write(arquivo.getbuffer())
+            zipf.write(temp_pdf_path, arcname=arquivo.name)
+            pdf_resultados[arquivo.name] = temp_pdf_path
+            st.write(f"📂 Arquivo pronto: {arquivo.name}")
+    
+    return pdf_resultados, zip_path
 
 def main():
     st.title("Agrupador de Comprovantes de Pagamento")
     arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True)
+    
     if arquivos:
-        organizar_por_fornecedor(arquivos)
+        pdf_resultados, zip_path = organizar_por_fornecedor(arquivos)
+        
+        for nome, caminho in pdf_resultados.items():
+            with open(caminho, "rb") as f:
+                st.download_button(f"Baixar {nome}", f, file_name=nome)
+        
+        with open(zip_path, "rb") as f:
+            st.download_button("📥 Baixar todos como ZIP", f, file_name="comprovantes_agrupados.zip")
 
 if __name__ == "__main__":
     main()
+
 
 
 
