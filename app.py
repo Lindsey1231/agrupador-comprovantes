@@ -20,6 +20,16 @@ def encontrar_valor(texto):
     padrao_valor = re.findall(r"\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})\b", texto)
     return set(padrao_valor) if padrao_valor else set()
 
+def encontrar_cnpj(texto):
+    """Busca CNPJs no conteúdo do PDF."""
+    padrao_cnpj = re.findall(r"\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b", texto)
+    return set(padrao_cnpj) if padrao_cnpj else set()
+
+def encontrar_nome_fornecedor(texto):
+    """Busca um nome de fornecedor provável baseado em palavras-chave."""
+    padrao_nome = re.findall(r"([A-Z\s&.,-]{5,})", texto)
+    return set(padrao_nome) if padrao_nome else set()
+
 def classificar_arquivo(nome):
     """Classifica o tipo de arquivo baseado no nome."""
     if any(kw in nome.lower() for kw in ["comprovante", "pix", "transferencia", "deposito"]):
@@ -39,22 +49,27 @@ def organizar_por_valor(arquivos):
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         valores = encontrar_valor(texto_pdf)
+        cnpjs = encontrar_cnpj(texto_pdf)
+        nomes_fornecedores = encontrar_nome_fornecedor(texto_pdf)
         tipo_arquivo = classificar_arquivo(nome)
-        info_arquivos.append((arquivo, nome, valores, tipo_arquivo))
+        info_arquivos.append((arquivo, nome, valores, cnpjs, nomes_fornecedores, tipo_arquivo))
     
-    for doc, nome_doc, valores_doc, tipo_doc in info_arquivos:
+    for doc, nome_doc, valores_doc, cnpjs_doc, nomes_doc, tipo_doc in info_arquivos:
         if tipo_doc != "documento":
             continue
         
-        for comprovante, nome_comp, valores_comp, tipo_comp in info_arquivos:
-            if tipo_comp == "comprovante" and valores_comp & valores_doc:
-                if nome_doc not in agrupados:
-                    agrupados[nome_doc] = []
-                agrupados[nome_doc].append(comprovante)
-                agrupados[nome_doc].append(doc)
-                break
+        for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
+            if tipo_comp == "comprovante":
+                
+                if valores_comp & valores_doc:
+                    if cnpjs_comp & cnpjs_doc or nomes_comp & nomes_doc:
+                        if nome_doc not in agrupados:
+                            agrupados[nome_doc] = []
+                        agrupados[nome_doc].append(comprovante)
+                        agrupados[nome_doc].append(doc)
+                        break
     
-    for comprovante, nome_comp, valores_comp, tipo_comp in info_arquivos:
+    for comprovante, nome_comp, valores_comp, cnpjs_comp, nomes_comp, tipo_comp in info_arquivos:
         if tipo_comp == "comprovante" and not any(comprovante in lista for lista in agrupados.values()):
             nome_referencia = f"Sem Correspondência - {nome_comp}"
             agrupados[nome_referencia] = [comprovante]
