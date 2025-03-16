@@ -34,7 +34,10 @@ def encontrar_cnpj(texto):
     """Busca CNPJs no conteúdo do PDF e padroniza a formatação."""
     padrao_cnpj = re.findall(r"\b\d{2}[.\/]?\d{3}[.\/]?\d{3}[\/\-]?\d{4}[\/\-]?\d{2}\b", texto)
     cnpjs = {re.sub(r'[^\d]', '', cnpj) for cnpj in padrao_cnpj} if padrao_cnpj else set()
-    return cnpjs
+    
+    # Remove CNPJs que devem ser ignorados
+    cnpjs_ignorados = {"19307785000178", "45121046000105", "28932155000185"}
+    return cnpjs - cnpjs_ignorados
 
 def encontrar_cpf(texto):
     """Busca CPFs no conteúdo do PDF e padroniza a formatação."""
@@ -83,27 +86,45 @@ def organizar_por_cnpj_cpf_e_valor(arquivos):
         documentos = grupo["documentos"]
         comprovantes = grupo["comprovantes"]
         
-        for doc, nome_doc, valores_doc in documentos:
-            melhor_correspondencia = None
-            
-            # Tenta correspondência por CNPJ/CPF
-            for comprovante, nome_comp, valores_comp in comprovantes:
-                if identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante)) or identificacao in encontrar_cpf(extrair_texto_pdf(comprovante)):
-                    melhor_correspondencia = comprovante
-                    break
-            
-            # Se não encontrou por CNPJ/CPF, tenta por valor
-            if not melhor_correspondencia:
+        # Se houver mais de um documento ou comprovante para o mesmo CNPJ/CPF, avalia CNPJ/CPF + valor
+        if len(documentos) > 1 or len(comprovantes) > 1:
+            for doc, nome_doc, valores_doc in documentos:
+                melhor_correspondencia = None
+                
+                # Tenta correspondência por valor dentro do mesmo CNPJ/CPF
                 for comprovante, nome_comp, valores_comp in comprovantes:
                     if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
                         melhor_correspondencia = comprovante
                         break
-            
-            # Se encontrou correspondência, adiciona ao grupo
-            if melhor_correspondencia:
-                agrupados[nome_doc] = [melhor_correspondencia, doc]
-                # Remove o comprovante da lista para evitar duplicação
-                comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
+                
+                # Se encontrou correspondência, adiciona ao grupo
+                if melhor_correspondencia:
+                    agrupados[nome_doc] = [melhor_correspondencia, doc]
+                    # Remove o comprovante da lista para evitar duplicação
+                    comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
+        else:
+            # Para casos com apenas um documento e/ou comprovante, mantém a lógica original (CNPJ/CPF primeiro, valor depois)
+            for doc, nome_doc, valores_doc in documentos:
+                melhor_correspondencia = None
+                
+                # Tenta correspondência por CNPJ/CPF
+                for comprovante, nome_comp, valores_comp in comprovantes:
+                    if identificacao in encontrar_cnpj(extrair_texto_pdf(comprovante)) or identificacao in encontrar_cpf(extrair_texto_pdf(comprovante)):
+                        melhor_correspondencia = comprovante
+                        break
+                
+                # Se não encontrou por CNPJ/CPF, tenta por valor
+                if not melhor_correspondencia:
+                    for comprovante, nome_comp, valores_comp in comprovantes:
+                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                            melhor_correspondencia = comprovante
+                            break
+                
+                # Se encontrou correspondência, adiciona ao grupo
+                if melhor_correspondencia:
+                    agrupados[nome_doc] = [melhor_correspondencia, doc]
+                    # Remove o comprovante da lista para evitar duplicação
+                    comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
     
     # Adiciona comprovantes sem correspondência
     for identificacao, grupo in grupos_identificacao.items():
