@@ -69,13 +69,22 @@ def organizar_por_cnpj_e_valor(arquivos):
         
         melhor_correspondencia = None
         
-        # 1. Tenta correspondência por CNPJ
+        # 1. Tenta correspondência por CNPJ e valor
         for comprovante, nome_comp, valores_comp, cnpjs_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante" and bool(cnpjs_comp & cnpjs_doc):
-                melhor_correspondencia = comprovante
-                break
+                # Verifica se há correspondência de valor
+                if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                    melhor_correspondencia = comprovante
+                    break
         
-        # 2. Se não encontrou por CNPJ, tenta por valor
+        # 2. Se não encontrou por CNPJ e valor, tenta apenas por CNPJ
+        if not melhor_correspondencia:
+            for comprovante, nome_comp, valores_comp, cnpjs_comp, tipo_comp in info_arquivos:
+                if tipo_comp == "comprovante" and bool(cnpjs_comp & cnpjs_doc):
+                    melhor_correspondencia = comprovante
+                    break
+        
+        # 3. Se ainda não encontrou, tenta apenas por valor (terceiro passo)
         if not melhor_correspondencia:
             for comprovante, nome_comp, valores_comp, cnpjs_comp, tipo_comp in info_arquivos:
                 if tipo_comp == "comprovante":
@@ -86,6 +95,8 @@ def organizar_por_cnpj_e_valor(arquivos):
         # Se encontrou correspondência, adiciona ao grupo
         if melhor_correspondencia:
             agrupados[nome_doc] = [melhor_correspondencia, doc]
+            # Remove o comprovante da lista para evitar duplicação
+            info_arquivos = [(a, n, v, c, t) for a, n, v, c, t in info_arquivos if a != melhor_correspondencia]
     
     # Adiciona comprovantes sem correspondência
     for comprovante, nome_comp, valores_comp, cnpjs_comp, tipo_comp in info_arquivos:
