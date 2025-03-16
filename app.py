@@ -73,25 +73,50 @@ def organizar_por_cnpj_e_valor(arquivos):
             elif tipo_arquivo == "comprovante":
                 grupos_cnpj[cnpj]["comprovantes"].append((arquivo, nome, valores))
     
-    # Associa documentos e comprovantes dentro de cada grupo de CNPJ
+    # Associa documentos e comprovantes
     for cnpj, grupo in grupos_cnpj.items():
         documentos = grupo["documentos"]
         comprovantes = grupo["comprovantes"]
         
-        for doc, nome_doc, valores_doc in documentos:
-            melhor_correspondencia = None
-            
-            # Tenta correspondência por valor dentro do mesmo CNPJ
-            for comprovante, nome_comp, valores_comp in comprovantes:
-                if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
-                    melhor_correspondencia = comprovante
-                    break
-            
-            # Se encontrou correspondência, adiciona ao grupo
-            if melhor_correspondencia:
-                agrupados[nome_doc] = [melhor_correspondencia, doc]
-                # Remove o comprovante da lista para evitar duplicação
-                comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
+        # Se houver mais de um documento ou comprovante para o mesmo CNPJ, avalia CNPJ + valor
+        if len(documentos) > 1 or len(comprovantes) > 1:
+            for doc, nome_doc, valores_doc in documentos:
+                melhor_correspondencia = None
+                
+                # Tenta correspondência por valor dentro do mesmo CNPJ
+                for comprovante, nome_comp, valores_comp in comprovantes:
+                    if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                        melhor_correspondencia = comprovante
+                        break
+                
+                # Se encontrou correspondência, adiciona ao grupo
+                if melhor_correspondencia:
+                    agrupados[nome_doc] = [melhor_correspondencia, doc]
+                    # Remove o comprovante da lista para evitar duplicação
+                    comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
+        else:
+            # Para casos com apenas um documento e/ou comprovante, mantém a lógica original (CNPJ primeiro, valor depois)
+            for doc, nome_doc, valores_doc in documentos:
+                melhor_correspondencia = None
+                
+                # Tenta correspondência por CNPJ
+                for comprovante, nome_comp, valores_comp in comprovantes:
+                    if bool(cnpj in encontrar_cnpj(extrair_texto_pdf(comprovante))):
+                        melhor_correspondencia = comprovante
+                        break
+                
+                # Se não encontrou por CNPJ, tenta por valor
+                if not melhor_correspondencia:
+                    for comprovante, nome_comp, valores_comp in comprovantes:
+                        if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
+                            melhor_correspondencia = comprovante
+                            break
+                
+                # Se encontrou correspondência, adiciona ao grupo
+                if melhor_correspondencia:
+                    agrupados[nome_doc] = [melhor_correspondencia, doc]
+                    # Remove o comprovante da lista para evitar duplicação
+                    comprovantes.remove((melhor_correspondencia, nome_comp, valores_comp))
     
     # Adiciona comprovantes sem correspondência
     for cnpj, grupo in grupos_cnpj.items():
