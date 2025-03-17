@@ -20,14 +20,19 @@ def extrair_texto_pdf(arquivo):
         return ""
 
 def encontrar_valor(texto):
-    """Busca valores monetários no conteúdo do PDF."""
-    padrao_valor = re.findall(r"\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})\b", texto)
+    """Busca valores monetários no conteúdo do PDF, considerando diferentes formatos."""
+    # Padrão para capturar valores monetários com ou sem "R$" e diferentes separadores
+    padrao_valor = re.findall(r"(?:R\$\s*)?\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})\b", texto)
     valores_processados = set()
+    
     for valor in padrao_valor:
         try:
-            valores_processados.add(float(valor.replace('.', '').replace(',', '.')))
+            # Remove "R$" e espaços, substitui "." por "" e "," por "."
+            valor_limpo = valor.replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
+            valores_processados.add(float(valor_limpo))
         except ValueError:
             continue
+    
     return valores_processados
 
 def encontrar_cnpj(texto):
@@ -84,14 +89,7 @@ def organizar_por_cnpj_e_valor(arquivos):
                     melhor_correspondencia = comprovante
                     break
         
-        # 2. Se não encontrou por CNPJ/CPF e valor, tenta apenas por CNPJ/CPF
-        if not melhor_correspondencia:
-            for comprovante, nome_comp, valores_comp, cnpjs_comp, cpfs_comp, tipo_comp in info_arquivos:
-                if tipo_comp == "comprovante" and (bool(cnpjs_comp & cnpjs_doc) or bool(cpfs_comp & cpfs_doc)):
-                    melhor_correspondencia = comprovante
-                    break
-        
-        # 3. Se ainda não encontrou, tenta apenas por valor (terceiro passo)
+        # 2. Se não encontrou por CNPJ/CPF e valor, tenta apenas por valor
         if not melhor_correspondencia:
             for comprovante, nome_comp, valores_comp, cnpjs_comp, cpfs_comp, tipo_comp in info_arquivos:
                 if tipo_comp == "comprovante":
