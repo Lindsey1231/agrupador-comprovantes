@@ -13,22 +13,29 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Users\lindsey.silva\AppData\Local\P
 # Definindo o caminho do Poppler
 POPPLER_PATH = r"C:\Program Files\poppler-24.08.0\bin"
 
-# Passando o caminho ao pdf2image
-images = convert_from_path(arquivo.name, poppler_path=POPPLER_PATH)
-
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
     try:
-        reader = PdfReader(arquivo)
+        # Criar um arquivo temporário para armazenar o PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+            temp_pdf.write(arquivo.getbuffer())
+            temp_pdf_path = temp_pdf.name  # Obtém o caminho real do arquivo
+
+        reader = PdfReader(temp_pdf_path)
         texto = []
+        
         for page in reader.pages:
             page_text = page.extract_text()
             if page_text:  # Se o PDF já tiver texto
                 texto.append(page_text)
             else:  # Se o PDF for uma imagem, usa OCR
-                images = convert_from_path(arquivo.name, poppler_path=POPPLER_PATH)
+                images = convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
                 for image in images:
                     texto.append(pytesseract.image_to_string(image, lang='por'))
+        
+        # Remover o arquivo temporário após o processamento
+        os.remove(temp_pdf_path)
+        
         return " \n".join(texto)
     except Exception as e:
         st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
