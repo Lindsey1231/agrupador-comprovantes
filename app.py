@@ -10,6 +10,27 @@ from pdf2image import convert_from_path
 # Definindo o caminho do Tesseract
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\lindsey.silva\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
+# Definindo o caminho do Poppler
+POPPLER_PATH = C:\Program Files\poppler-24.08.0
+
+def extrair_texto_pdf(arquivo):
+    """Extrai texto do PDF, usando OCR se necessário."""
+    try:
+        reader = PdfReader(arquivo)
+        texto = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:  # Se o PDF já tiver texto
+                texto.append(page_text)
+            else:  # Se o PDF for uma imagem, usa OCR
+                images = convert_from_path(arquivo.name, poppler_path=POPPLER_PATH)
+                for image in images:
+                    texto.append(pytesseract.image_to_string(image, lang='por'))
+        return " \n".join(texto)
+    except Exception as e:
+        st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
+        return ""
+        
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
     try:
