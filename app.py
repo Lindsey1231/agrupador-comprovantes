@@ -11,7 +11,7 @@ from pdf2image import convert_from_path
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\lindsey.silva\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
 # Definindo o caminho do Poppler
-POPPLER_PATH = r"C:\Program Files\poppler-24.08.0\share\poppler\bin"
+POPPLER_PATH = r"C:\Program Files\poppler-24.08.0\share\poppler"
 
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
