@@ -4,16 +4,22 @@ import tempfile
 import re
 import zipfile
 from PyPDF2 import PdfMerger, PdfReader
+import pytesseract
+from pdf2image import convert_from_path
 
 def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF garantindo melhor leitura."""
+    """Extrai texto do PDF, usando OCR se necessário."""
     try:
         reader = PdfReader(arquivo)
         texto = []
         for page in reader.pages:
             page_text = page.extract_text()
-            if page_text:
+            if page_text:  # Se o PDF já tiver texto
                 texto.append(page_text)
+            else:  # Se o PDF for uma imagem, usa OCR
+                images = convert_from_path(arquivo.name)
+                for image in images:
+                    texto.append(pytesseract.image_to_string(image, lang='por'))
         return " \n".join(texto)
     except Exception as e:
         st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
