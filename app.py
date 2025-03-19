@@ -7,6 +7,9 @@ from PyPDF2 import PdfMerger, PdfReader
 import pytesseract
 from pdf2image import convert_from_path
 
+# Definindo o caminho do Tesseract
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
     try:
