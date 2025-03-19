@@ -8,7 +8,7 @@ import pytesseract
 from pdf2image import convert_from_path
 
 # Definindo o caminho do Tesseract
-pytesseract.pytesseract.tesseract_cmd = C:\Users\lindsey.silva\AppData\Local\Programs\Tesseract-OCR
+pytesseract.pytesseract.tesseract_cmd = r"C:\Users\lindsey.silva\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
