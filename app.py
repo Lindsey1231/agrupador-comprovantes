@@ -87,7 +87,7 @@ def encontrar_cpf(texto):
 
 def classificar_arquivo(nome):
     """Classifica o tipo de arquivo baseado no nome."""
-    if any(kw in nome.lower() for kw in ["comprovante", "pix", "transferencia", "deposito", "pagamento"]):
+    if any(kw in nome.lower() for kw in ["comprovante", "pix", "transferencia", "deposito"]):
         return "comprovante"
     return "documento"
 
