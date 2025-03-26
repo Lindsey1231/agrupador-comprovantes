@@ -91,30 +91,53 @@ def formatar_saida(nome, cnpjs, cpfs, valores):
 
 def organizar_por_cnpj_e_valor(arquivos):
     st.write("### Processando arquivos...")
-    temp_dir = tempfile.mkdtemp()
-    zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
-    pdf_resultados = {}
-    agrupados = {}
-    info_arquivos = []
     
-    # Verificação dos arquivos
-    st.write("### Verificação dos Arquivos")
-    for arquivo in arquivos:
-        nome = arquivo.name
-        texto_pdf = extrair_texto_pdf(arquivo)
-        valores = encontrar_valor(texto_pdf)
-        cnpjs = encontrar_cnpj(texto_pdf)
-        cpfs = encontrar_cpf(texto_pdf)
+    try:
+        temp_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(temp_dir, "comprovantes_agrupados.zip")
+        pdf_resultados = {}
+        agrupados = {}
+        info_arquivos = []
         
-        st.code(formatar_saida(nome, cnpjs, cpfs, valores), language='text')
+        # Verificação dos arquivos
+        st.write("### Verificação dos Arquivos")
+        for arquivo in arquivos:
+            nome = arquivo.name
+            texto_pdf = extrair_texto_pdf(arquivo)
+            valores = encontrar_valor(texto_pdf)
+            cnpjs = encontrar_cnpj(texto_pdf)
+            cpfs = encontrar_cpf(texto_pdf)
+            
+            st.code(formatar_saida(nome, cnpjs, cpfs, valores), language='text')
+            tipo_arquivo = classificar_arquivo(nome)
+            info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
         
-        tipo_arquivo = classificar_arquivo(nome)
-        info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
-    
-    # Restante da função original...
-    # [Mantido exatamente como estava no seu código original]
-    
-    return pdf_resultados, zip_path
+        # [Seu código original de agrupamento aqui...]
+        
+        # Gera os PDFs agrupados e o ZIP
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+            for nome_final, arquivos_agrupados in agrupados.items():
+                merger = PdfMerger()
+                output_path = os.path.join(temp_dir, nome_final)
+                
+                for doc in arquivos_agrupados:
+                    merger.append(doc)
+                
+                merger.write(output_path)
+                merger.close()
+                
+                # Adiciona ao ZIP
+                zipf.write(output_path, arcname=nome_final)
+                # Armazena para download individual
+                pdf_resultados[nome_final] = output_path
+                
+                st.write(f"📂 Arquivo gerado: {nome_final}")
+        
+        return pdf_resultados, zip_path
+        
+    except Exception as e:
+        st.error(f"Erro durante o processamento: {str(e)}")
+        return {}, None
 
 def main():
     st.title("Agrupador de Comprovantes de Pagamento")
@@ -125,24 +148,34 @@ def main():
         if st.button("🔗 Juntar e Processar PDFs", key="process_button"):
             pdf_resultados, zip_path = organizar_por_cnpj_e_valor(arquivos)
             
-            for nome, caminho in pdf_resultados.items():
-                with open(caminho, "rb") as f:
-                    st.download_button(
-                        label=f"📄 Baixar {nome}",
-                        data=f,
-                        file_name=nome,
-                        mime="application/pdf",
-                        key=f"download_{nome}"
-                    )
-            
-            with open(zip_path, "rb") as f:
-                st.download_button(
-                    label="📥 Baixar todos como ZIP",
-                    data=f,
-                    file_name="comprovantes_agrupados.zip",
-                    mime="application/zip",
-                    key="download_zip"
-                )
-
-if __name__ == "__main__":
-    main()
+            if pdf_resultados:
+                st.write("### 📥 Downloads Individuais")
+                cols = st.columns(2)  # Cria 2 colunas para organizar os botões
+                
+                for i, (nome, caminho) in enumerate(pdf_resultados.items()):
+                    with open(caminho, "rb") as f:
+                        # Alterna entre as colunas para melhor organização
+                        with cols[i % 2]:
+                            st.download_button(
+                                label=f"⬇️ {nome}",
+                                data=f,
+                                file_name=nome,
+                                mime="application/pdf",
+                                key=f"indiv_{nome}"
+                            )
+                
+                st.write("---")
+                st.write("### 📦 Pacote Completo")
+                if zip_path and os.path.exists(zip_path):
+                    with open(zip_path, "rb") as f:
+                        st.download_button(
+                            label="📥 Baixar TODOS como ZIP",
+                            data=f,
+                            file_name="comprovantes_agrupados.zip",
+                            mime="application/zip",
+                            key="download_zip_all"
+                        )
+                else:
+                    st.warning("Arquivo ZIP não foi gerado")
+            else:
+                st.warning("Nenhum arquivo foi gerado para download")
