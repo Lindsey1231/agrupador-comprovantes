@@ -109,39 +109,24 @@ def organizar_por_cnpj_e_valor(arquivos):
     st.write("### Verificação dos Arquivos")
     
     def formatar_saida(nome, cnpjs, cpfs, valores):
-        """Formata a saída como solicitado: (CNPJ; VALOR)"""
-        doc = list(cnpjs)[0] if cnpjs else (list(cpfs)[0] if cpfs else None
-        valor = list(valores)[0] if valores else None
-        
-        # Formatar CNPJ/CPF
-        if doc:
-            doc_formatado = re.sub(r'(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})', r'\1.\2.\3/\4-\5', doc) if len(doc) == 14 else \
-                           re.sub(r'(\d{3})(\d{3})(\d{3})(\d{2})', r'\1.\2.\3-\4', doc)
-        else:
-            doc_formatado = "N/A"
-        
-        # Formatar valor
-        if valor:
-            valor_formatado = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        else:
-            valor_formatado = "N/A"
-        
-        return f"{nome} ({doc_formatado}; {valor_formatado})"
+    """Formata a saída como solicitado: (CNPJ; VALOR)"""
+    doc = list(cnpjs)[0] if cnpjs else (list(cpfs)[0] if cpfs else None)  # Corrigido aqui
+    valor = list(valores)[0] if valores else None
     
-    # Processa cada arquivo para mostrar a verificação
-    for arquivo in arquivos:
-        nome = arquivo.name
-        texto_pdf = extrair_texto_pdf(arquivo)
-        valores = encontrar_valor(texto_pdf)
-        cnpjs = encontrar_cnpj(texto_pdf)
-        cpfs = encontrar_cpf(texto_pdf)
-        
-        # Mostra o resultado formatado
-        st.code(formatar_saida(nome, cnpjs, cpfs, valores), language='text')
-        
-        # Mantém o processamento original
-        tipo_arquivo = classificar_arquivo(nome)
-        info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
+    # Formatar CNPJ/CPF
+    if doc:
+        doc_formatado = re.sub(r'(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})', r'\1.\2.\3/\4-\5', doc) if len(doc) == 14 else \
+                       re.sub(r'(\d{3})(\d{3})(\d{3})(\d{2})', r'\1.\2.\3-\4', doc)
+    else:
+        doc_formatado = "N/A"
+    
+    # Formatar valor
+    if valor:
+        valor_formatado = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    else:
+        valor_formatado = "N/A"
+    
+    return f"{nome} ({doc_formatado}; {valor_formatado})"
     
     # =============================================
     # RESTANTE DO CÓDIGO ORIGINAL (MANTIDO SEM ALTERAÇÕES)
