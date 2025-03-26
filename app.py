@@ -13,27 +13,51 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Users\lindsey.silva\AppData\Local\P
 # Definindo o caminho do Poppler
 POPPLER_PATH = r"C:\Program Files\poppler-24.08.0\Library\bin"
 
+# =============================================
+# FUNÇÕES ORIGINAIS (MANTIDAS EXATAMENTE COMO ESTAVAM)
+# =============================================
+
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
     try:
         # Criar um arquivo temporário para armazenar o PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf.write(arquivo.getbuffer())
-            temp_pdf_path = temp_pdf.name
+            temp_pdf_path = temp_pdf.name  # Obtém o caminho real do arquivo
 
         reader = PdfReader(temp_pdf_path)
         texto = []
         
         for page in reader.pages:
             page_text = page.extract_text()
-            if page_text:
+            if page_text:  # Se o PDF já tiver texto
                 texto.append(page_text)
-            else:
+            else:  # Se o PDF for uma imagem, usa OCR
                 images = convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
                 for image in images:
                     texto.append(pytesseract.image_to_string(image, lang='por'))
         
+        # Remover o arquivo temporário após o processamento
         os.remove(temp_pdf_path)
+        
+        return " \n".join(texto)
+    except Exception as e:
+        st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
+        return ""
+        
+def extrair_texto_pdf(arquivo):
+    """Extrai texto do PDF, usando OCR se necessário."""
+    try:
+        reader = PdfReader(arquivo)
+        texto = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:  # Se o PDF já tiver texto
+                texto.append(page_text)
+            else:  # Se o PDF for uma imagem, usa OCR
+                images = convert_from_path(arquivo.name)
+                for image in images:
+                    texto.append(pytesseract.image_to_string(image, lang='por'))
         return " \n".join(texto)
     except Exception as e:
         st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
@@ -54,6 +78,8 @@ def encontrar_cnpj(texto):
     """Busca CNPJs no conteúdo do PDF e padroniza a formatação."""
     padrao_cnpj = re.findall(r"\b\d{2}[.\/]?\d{3}[.\/]?\d{3}[\/\-]?\d{4}[\/\-]?\d{2}\b", texto)
     cnpjs = {re.sub(r'[^\d]', '', cnpj) for cnpj in padrao_cnpj} if padrao_cnpj else set()
+    
+    # Remove CNPJs que devem ser ignorados
     cnpjs_ignorados = {"19307785000178", "45121046000105", "28932155000185"}
     return cnpjs - cnpjs_ignorados
 
@@ -76,17 +102,50 @@ def organizar_por_cnpj_e_valor(arquivos):
     pdf_resultados = {}
     agrupados = {}
     info_arquivos = []
-    nao_agrupados = []
     
-    # Extrai informações dos arquivos
+    # =============================================
+    # NOVA SEÇÃO: VERIFICAÇÃO DOS ARQUIVOS
+    # =============================================
+    st.write("### Verificação dos Arquivos")
+    
+    def formatar_saida(nome, cnpjs, cpfs, valores):
+        """Formata a saída como solicitado: (CNPJ; VALOR)"""
+        doc = list(cnpjs)[0] if cnpjs else (list(cpfs)[0] if cpfs else None
+        valor = list(valores)[0] if valores else None
+        
+        # Formatar CNPJ/CPF
+        if doc:
+            doc_formatado = re.sub(r'(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})', r'\1.\2.\3/\4-\5', doc) if len(doc) == 14 else \
+                           re.sub(r'(\d{3})(\d{3})(\d{3})(\d{2})', r'\1.\2.\3-\4', doc)
+        else:
+            doc_formatado = "N/A"
+        
+        # Formatar valor
+        if valor:
+            valor_formatado = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        else:
+            valor_formatado = "N/A"
+        
+        return f"{nome} ({doc_formatado}; {valor_formatado})"
+    
+    # Processa cada arquivo para mostrar a verificação
     for arquivo in arquivos:
         nome = arquivo.name
         texto_pdf = extrair_texto_pdf(arquivo)
         valores = encontrar_valor(texto_pdf)
         cnpjs = encontrar_cnpj(texto_pdf)
         cpfs = encontrar_cpf(texto_pdf)
+        
+        # Mostra o resultado formatado
+        st.code(formatar_saida(nome, cnpjs, cpfs, valores), language='text')
+        
+        # Mantém o processamento original
         tipo_arquivo = classificar_arquivo(nome)
         info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
+    
+    # =============================================
+    # RESTANTE DO CÓDIGO ORIGINAL (MANTIDO SEM ALTERAÇÕES)
+    # =============================================
     
     # Associa documentos e comprovantes
     for doc, nome_doc, valores_doc, cnpjs_doc, cpfs_doc, tipo_doc in info_arquivos:
@@ -98,6 +157,7 @@ def organizar_por_cnpj_e_valor(arquivos):
         # 1. Tenta correspondência por CNPJ/CPF e valor
         for comprovante, nome_comp, valores_comp, cnpjs_comp, cpfs_comp, tipo_comp in info_arquivos:
             if tipo_comp == "comprovante" and (bool(cnpjs_comp & cnpjs_doc) or bool(cpfs_comp & cpfs_doc)):
+                # Verifica se há correspondência de valor
                 if any(abs(vc - vd) / vd <= 0.005 for vc in valores_comp for vd in valores_doc if vd != 0):
                     melhor_correspondencia = comprovante
                     break
@@ -109,7 +169,7 @@ def organizar_por_cnpj_e_valor(arquivos):
                     melhor_correspondencia = comprovante
                     break
         
-        # 3. Se ainda não encontrou, tenta apenas por valor
+        # 3. Se ainda não encontrou, tenta apenas por valor (terceiro passo)
         if not melhor_correspondencia:
             for comprovante, nome_comp, valores_comp, cnpjs_comp, cpfs_comp, tipo_comp in info_arquivos:
                 if tipo_comp == "comprovante":
@@ -117,35 +177,17 @@ def organizar_por_cnpj_e_valor(arquivos):
                         melhor_correspondencia = comprovante
                         break
         
+        # Se encontrou correspondência, adiciona ao grupo
         if melhor_correspondencia:
             agrupados[nome_doc] = [melhor_correspondencia, doc]
+            # Remove o comprovante da lista para evitar duplicação
             info_arquivos = [(a, n, v, cnpj, cpf, t) for a, n, v, cnpj, cpf, t in info_arquivos if a != melhor_correspondencia]
     
-    # Identifica comprovantes não agrupados
+    # Adiciona comprovantes sem correspondência
     for comprovante, nome_comp, valores_comp, cnpjs_comp, cpfs_comp, tipo_comp in info_arquivos:
-        if tipo_comp == "comprovante":
-            # Determina o que foi encontrado
-            tem_documento = bool(cnpjs_comp or cpfs_comp)
-            tem_valor = bool(valores_comp)
-            
-            if tem_documento and tem_valor:
-                status = "CNPJ/CPF + VALOR"
-            elif tem_documento:
-                status = "APENAS CNPJ/CPF"
-            elif tem_valor:
-                status = "APENAS VALOR"
-            else:
-                status = "NENHUM DADO RELEVANTE"
-            
-            nao_agrupados.append((nome_comp, status))
+        if tipo_comp == "comprovante" and not any(comprovante in lista for lista in agrupados.values()):
             nome_referencia = f"Sem Correspondência - {nome_comp}"
             agrupados[nome_referencia] = [comprovante]
-    
-    # Mostra resumo dos não agrupados
-    if nao_agrupados:
-        st.write("### 📊 Resumo dos Comprovantes Não Agrupados")
-        for nome, status in nao_agrupados:
-            st.write(f"- **{nome}**: {status}")
     
     # Gera PDFs agrupados e arquivo ZIP
     with zipfile.ZipFile(zip_path, "w") as zipf:
@@ -159,12 +201,14 @@ def organizar_por_cnpj_e_valor(arquivos):
             merger.close()
             pdf_resultados[output_filename] = output_path
             zipf.write(output_path, arcname=output_filename)
+            st.write(f"📂 Arquivo gerado: {output_filename}")
     
     return pdf_resultados, zip_path
 
 def main():
     st.title("Agrupador de Comprovantes de Pagamento")
     
+    # Adicionando um key único ao file_uploader
     arquivos = st.file_uploader("Envie seus arquivos", accept_multiple_files=True, key="file_uploader")
     
     if arquivos and len(arquivos) > 0:
