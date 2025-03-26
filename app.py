@@ -6,12 +6,54 @@ import zipfile
 from PyPDF2 import PdfMerger, PdfReader
 import pytesseract
 from pdf2image import convert_from_path
+from datetime import datetime
 
 # Definindo o caminho do Tesseract
 pytesseract.pytesseract.tesseract_cmd = r"C:\Users\lindsey.silva\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
 # Definindo o caminho do Poppler
 POPPLER_PATH = r"C:\Program Files\poppler-24.08.0\Library\bin"
+
+def log_verificacao(nome_arquivo, cnpjs, cpfs, valores, texto_extraido=None):
+    """Gera um log detalhado das verificações realizadas em um arquivo."""
+    log = f"\n📄 Arquivo: {nome_arquivo}\n"
+    log += f"⏱️ Data/Hora da verificação: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+    
+    if texto_extraido:
+        log += f"📝 Texto extraído (início): {texto_extraido[:200]}...\n"
+    
+    log += "\n🔍 Resultados da verificação:\n"
+    
+    # Verificação de CNPJ
+    if cnpjs:
+        log += f"✅ CNPJs encontrados: {', '.join(cnpjs)}\n"
+    else:
+        log += "❌ Nenhum CNPJ encontrado\n"
+    
+    # Verificação de CPF
+    if cpfs:
+        log += f"✅ CPFs encontrados: {', '.join(cpfs)}\n"
+    else:
+        log += "❌ Nenhum CPF encontrado\n"
+    
+    # Verificação de valores
+    if valores:
+        log += f"✅ Valores encontrados: {', '.join(map(str, valores))}\n"
+    else:
+        log += "❌ Nenhum valor encontrado\n"
+    
+    # Resumo da verificação
+    log += "\n📌 Resumo:\n"
+    if cnpjs and valores:
+        log += "✔️ CNPJ + VALOR encontrados\n"
+    elif cnpjs:
+        log += "✔️ Apenas CNPJ encontrado\n"
+    elif valores:
+        log += "✔️ Apenas VALOR encontrado\n"
+    else:
+        log += "⚠️ Nenhum dado relevante encontrado\n"
+    
+    return log
 
 def extrair_texto_pdf(arquivo):
     """Extrai texto do PDF, usando OCR se necessário."""
@@ -36,24 +78,6 @@ def extrair_texto_pdf(arquivo):
         # Remover o arquivo temporário após o processamento
         os.remove(temp_pdf_path)
         
-        return " \n".join(texto)
-    except Exception as e:
-        st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
-        return ""
-        
-def extrair_texto_pdf(arquivo):
-    """Extrai texto do PDF, usando OCR se necessário."""
-    try:
-        reader = PdfReader(arquivo)
-        texto = []
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:  # Se o PDF já tiver texto
-                texto.append(page_text)
-            else:  # Se o PDF for uma imagem, usa OCR
-                images = convert_from_path(arquivo.name)
-                for image in images:
-                    texto.append(pytesseract.image_to_string(image, lang='por'))
         return " \n".join(texto)
     except Exception as e:
         st.error(f"Erro na extração do texto do arquivo {arquivo.name}: {str(e)}")
@@ -98,6 +122,7 @@ def organizar_por_cnpj_e_valor(arquivos):
     pdf_resultados = {}
     agrupados = {}
     info_arquivos = []
+    logs_verificacao = []
     
     # Extrai informações dos arquivos
     for arquivo in arquivos:
@@ -108,6 +133,16 @@ def organizar_por_cnpj_e_valor(arquivos):
         cpfs = encontrar_cpf(texto_pdf)
         tipo_arquivo = classificar_arquivo(nome)
         info_arquivos.append((arquivo, nome, valores, cnpjs, cpfs, tipo_arquivo))
+        
+        # Gera log de verificação para cada arquivo
+        log = log_verificacao(nome, cnpjs, cpfs, valores, texto_pdf[:1000] if texto_pdf else None)
+        logs_verificacao.append(log)
+        st.text_area(f"Log de verificação - {nome}", value=log, height=300, key=f"log_{nome}")
+    
+    # Mostra um resumo geral de todos os arquivos
+    st.write("### 📊 Resumo Geral das Verificações")
+    for log in logs_verificacao:
+        st.text(log.split("\n📌 Resumo:")[0])  # Mostra apenas a parte principal do log
     
     # Associa documentos e comprovantes
     for doc, nome_doc, valores_doc, cnpjs_doc, cpfs_doc, tipo_doc in info_arquivos:
@@ -184,7 +219,7 @@ def main():
                         data=f,
                         file_name=nome,
                         mime="application/pdf",
-                        key=f"download_{nome}"  # Adicionando um key único para cada botão de download
+                        key=f"download_{nome}"
                     )
             
             with open(zip_path, "rb") as f:
@@ -193,7 +228,7 @@ def main():
                     data=f,
                     file_name="comprovantes_agrupados.zip",
                     mime="application/zip",
-                    key="download_zip"  # Adicionando um key único para o botão de download do ZIP
+                    key="download_zip"
                 )
 
 if __name__ == "__main__":
